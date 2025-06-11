@@ -1,322 +1,316 @@
 #include "escalonador.h"
-#include <fstream> // Para leitura de arquivos
-#include <sstream> // Para parsing de strings
-#include <limits>  // Para std::numeric_limits
 
-
-// Construtor
-Escalonador::Escalonador()
-    : relogio_simulacao(), 
-      condicao_termino(false),
-      proximo_id_pacote(0)
-{
-    // Construção dos objetos membros. Nada mais necessário aqui.
+// Função auxiliar para formatar números
+inline std::string formatarNumero(int numero, int largura) {
+    std::stringstream ss;
+    ss << std::setw(largura) << std::setfill('0') << numero;
+    return ss.str();
 }
 
-// Destrutor
+// --- Implementações da Classe Escalonador ---
+
+Escalonador::Escalonador() : tempo_sistema(0), pacotes_entregues(0) {}
 Escalonador::~Escalonador() {
-    // A maioria dos membros (Vetor, minHeap) gerencia sua própria memória.
-    // Nada especial para desalocar aqui.
-}
-
-// Inicia e executa a simulação principal
-void Escalonador::simuladorArmazens() {
-    inicializa(); // Inicializa condição de término, relógio, variáveis de estado e eventos iniciais [cite: 51]
-
-    // Enquanto a condição de término for FALSA [cite: 51]
-    while (!condicao_termino) {
-        // Verifica se há eventos pendentes ou pacotes nos armazéns para continuar a simulação
-        if (fila_de_prioridade.vazia() && todasSecoesArmazensVazias()) {
-            condicao_termino = true; // Se não há mais eventos e armazéns vazios, a simulação termina [cite: 54]
-            break;
-        }
-
-        EventoSimulacao proximo_evento = retiraProximoEvento(); // Remove o próximo evento do escalonador [cite: 51]
-
-        // Avança o relógio para o instante do próximo evento [cite: 51]
-        relogio_simulacao = proximo_evento.tempo;
-
-        // Executa o próximo evento e, se for o caso, agenda novos eventos [cite: 51]
-        switch (proximo_evento.tipo) {
-            case EVENTO_CHEGADA_PACOTE:
-                processaChegadaPacote(proximo_evento);
-                break;
-            case EVENTO_INICIO_TRANSPORTE:
-                processaInicioTransporte(proximo_evento);
-                break;
-            case EVENTO_FIM_SIMULACAO:
-                condicao_termino = true;
-                break;
-            default:
-                std::cerr << "Erro: Tipo de evento desconhecido ou inválido." << std::endl;
-                break;
-        }
-
-        atualizarEstatisticas(); // Atualiza as estatísticas [cite: 51]
-    }
-
-    finaliza(); // Finaliza a simulação e gera relatórios [cite: 51]
-}
-
-// 1. Inicializa o estado do sistema e agenda eventos iniciais
-void Escalonador::inicializa() {
-    condicao_termino = false; // Garante que a condição de término é FALSA [cite: 51]
-    relogio_simulacao = Time(0.0); // Inicializa o Relógio (usualmente zero) [cite: 51]
-
-    // Inicializa as variáveis de estado do sistema
-    carregaTopologiaArmazens(); // Carrega a estrutura do grafo de armazéns
-    // Assume que a `carregaTopologiaArmazens` também popula o `armazens` Vetor
-    // Ex: for (int i = 0; i < topologia_armazens.quantidadeVertices(); ++i) {
-    //         armazens.adicionar(Armazem(i, topologia_armazens.getNome(i), topologia_armazens.quantidadeVertices()));
-    //     }
-
-    carregaPacotesIniciais(); // Lê o arquivo de entrada e agenda as chegadas iniciais dos pacotes
-    agendarTransportesPeriodicos(); // Agenda os primeiros eventos de transporte entre armazéns
-}
-
-// 2. Insere um evento na fila de prioridade
-void Escalonador::insereEvento(const EventoSimulacao& evento) {
-    fila_de_prioridade.inserir(evento); // [cite: 66]
-}
-
-// 3. Retira o próximo evento da fila de prioridade
-EventoSimulacao Escalonador::retiraProximoEvento() {
-    if (fila_de_prioridade.vazia()) {
-        // Isso não deve acontecer se a condição de término for bem verificada,
-        // mas é uma salvaguarda.
-        return EventoSimulacao(relogio_simulacao, EVENTO_FIM_SIMULACAO); // Retorna um evento de fim para parar o loop
-    }
-    return fila_de_prioridade.removerMinimo(); // [cite: 66]
-}
-
-// 4. Finaliza a simulação e gera relatórios
-void Escalonador::finaliza() {
-    gerarRelatorios(); // [cite: 51]
-    std::cout << "Simulação finalizada no tempo: " << relogio_simulacao.toHours() << " horas." << std::endl;
-}
-
-// --- Métodos de Lógica da Simulação (esqueletos) ---
-
-// Processa o evento de chegada de um pacote em um armazém
-void Escalonador::processaChegadaPacote(const EventoSimulacao& evento) {
-    // Recupera o pacote envolvido (precisará de um método para buscar pacote por ID)
-    // Pacote& pacote_atual = pacotes_no_sistema[evento.id_pacote];
-
-    // Se pacote chegou ao destino final [cite: 78]
-    // if (pacote_atual.chegouAoDestinoFinal()) {
-    //     registraEntregaPacote(pacote_atual); [cite: 78]
-    // } else { // Senão chegou ao destino final
-        // Armazena o pacote na respectiva seção [cite: 77]
-        // Armazem& armazem_alvo = armazens[evento.id_armazem_destino]; // Onde o pacote acabou de chegar
-        // int proximo_destino_id = pacote_atual.getProximoArmazemRota(); // Próximo armazém na rota
-        // armazem_alvo.armazenaPacote(pacote_atual, proximo_destino_id, relogio_simulacao);
-        // pacote_atual.setEstado(ARMAZENADO); [cite: 58]
-    // }
-    std::cout << "DEBUG: Pacote " << evento.id_pacote << " chegou ao armazém " << evento.id_armazem_destino << " no tempo " << relogio_simulacao.toHours() << std::endl;
-}
-
-// Processa o evento de início de transporte entre armazéns
-void Escalonador::processaInicioTransporte(const EventoSimulacao& evento) {
-    int origem_id = evento.id_armazem_origem;
-    int destino_id = evento.id_armazem_destino;
-
-    // Armazem& armazem_origem = armazens[origem_id];
-
-    // Lógica para remover os pacotes mais antigos até a capacidade do transporte [cite: 72]
-    // (Isso é o ponto crucial e mais complexo do TP: LIFO + prioridade de tempo)
-    // Vetor<Pacote> pacotes_transportados;
-    // int capacidade = info_transporte_global.getCapacidadeMaxPacotes();
-    // double tempo_manipulacao_por_pacote = 0.1; // Exemplo: 0.1 horas por pacote desempilhado/reempilhado
-
-    // Simulação da remoção LIFO com prioridade:
-    // Você teria que iterar pela pilha (desempilhando e reempilhando),
-    // selecionar os N pacotes mais antigos (até a capacidade) e contabilizar o tempo de manipulação
-    // para cada pacote "bloqueador" que teve que ser movido.
-
-    // Exemplo simplificado (sem LIFO complexo ou prioridade):
-    /*
-    for (int i = 0; i < capacidade && !armazem_origem.isSecaoVazia(destino_id); ++i) {
-        // Isso só pegaria o topo LIFO. A complexidade LIFO precisa ser implementada dentro de Armazem::recuperaPacoteParaEnvio
-        Pacote pacote_a_transportar = armazem_origem.recuperaPacote(); // Errado se for por seções
-        pacotes_transportados.adicionar(pacote_a_transportar);
-    }
-    */
-
-    // Escalona a chegada dos pacotes removidos no próximo armazém [cite: 73]
-    // double tempo_transporte_segmento = info_transporte_global.getTempoTransportePorSegmento().toHours();
-    /*
-    for (size_t i = 0; i < pacotes_transportados.tamanho(); ++i) {
-        Pacote& p = pacotes_transportados[i];
-        p.setEstado(SENDO_TRANSPORTADO); [cite: 58]
-        p.acumularTempoEmTransito(info_transporte_global.getTempoTransportePorSegmento());
-        // p.avancaNaRota(); // Move o pacote para o próximo segmento da rota
-        // int proximo_armazem_na_rota = p.getProximoArmazemRota(); // Onde ele vai chegar
-
-        insereEvento(EventoSimulacao(relogio_simulacao + info_transporte_global.getTempoTransportePorSegmento(),
-                                     EVENTO_CHEGADA_PACOTE, p.getId(), origem_id, destino_id)); // destino_id é o próximo na rota
-    }
-    */
-
-    // Escalona o próximo evento de transporte para essa ligação (diário) [cite: 73]
-    // agendarTransportesPeriodicos(); // Ou agendar um transporte específico para essa rota
-    std::cout << "DEBUG: Inicio de transporte do armazém " << origem_id << " para " << destino_id << " no tempo " << relogio_simulacao.toHours() << std::endl;
-}
-
-// --- Métodos Auxiliares de Configuração e Verificação ---
-
-void Escalonador::carregaTopologiaArmazens() {
-    // Implementar a leitura da topologia do grafo a partir de um arquivo (se houver)
-    // Ou criar um grafo de exemplo estaticamente.
-    // Exemplo estático simples:
-    int id_a = topologia_armazens.adicionarVertice("Armazem_A");
-    int id_b = topologia_armazens.adicionarVertice("Armazem_B");
-    int id_c = topologia_armazens.adicionarVertice("Armazem_C");
-
-    // Adiciona armazéns ao vetor de armazéns gerenciados pelo escalonador
-    armazens.adicionar(Armazem(id_a, "Armazem_A", topologia_armazens.quantidadeVertices()));
-    armazens.adicionar(Armazem(id_b, "Armazem_B", topologia_armazens.quantidadeVertices()));
-    armazens.adicionar(Armazem(id_c, "Armazem_C", topologia_armazens.quantidadeVertices()));
-
-
-    // Adiciona arestas com peso (tempo de transporte)
-    // O problema diz que o tempo de transporte é idêntico.
-    // Devo conseguir armazenar o tempo aqui para calculos futuros
-
-    std::cout << "DEBUG: Topologia de armazéns carregada." << std::endl;
-}
-
-void Escalonador::carregaPacotesIniciais() {
-    // Lê os dados de entrada de pacotes de um arquivo [cite: 18]
-    // Para cada linha do arquivo:
-    // Data hora da postagem, Nome Remetente, Nome Destinatário, Tipo, Armazém de origem, Armazém de destino [cite: 18]
-    // Exemplo de como ler e criar um pacote:
-    /*
-    std::ifstream arquivo_entradas("entradas.txt");
-    std::string linha;
-    while (std::getline(arquivo_entradas, linha)) {
-        std::stringstream ss(linha);
-        std::string s_data_hora, s_remetente, s_destinatario, s_tipo, s_ar_origem, s_ar_destino;
-        // Assume que os campos são separados por vírgula ou espaço e lidos adequadamente
-        // (Isso exigiria parsing mais robusto, mas para o esqueleto, é conceitual)
-        // ss >> s_data_hora >> s_remetente >> s_destinatario >> s_tipo >> s_ar_origem >> s_ar_destino;
-
-        // Exemplo direto de criação de pacote para teste:
-        Time tempo_postagem = Time::fromString("2025-01-01 08:00:00");
-        int ar_origem_id = topologia_armazens.getIndice("Armazem_A");
-        int ar_destino_id = topologia_armazens.getIndice("Armazem_C");
-
-        if (ar_origem_id != -1 && ar_destino_id != -1) {
-            Pacote novo_pacote(proximo_id_pacote++, tempo_postagem, "Remetente", "Destinatario", "Padrao", ar_origem_id, ar_destino_id);
-            // Calcular e armazenar a rota do pacote [cite: 5]
-            // Isso exigiria um algoritmo de busca (BFS/DFS) no Grafo
-            // ListaEncadeada<int> rota_calculada = encontrarRotaBFS(ar_origem_id, ar_destino_id, topologia_armazens);
-            // novo_pacote.setRota(rota_calculada);
-
-            pacotes_no_sistema.adicionar(novo_pacote);
-
-            // Escalona a chegada de pacotes nos armazéns de postagem [cite: 74, 75]
-            insereEvento(EventoSimulacao(tempo_postagem, EVENTO_CHEGADA_PACOTE, novo_pacote.getId(), ar_origem_id, ar_origem_id)); // Pacote chega no armazém de origem
-            std::cout << "DEBUG: Pacote " << novo_pacote.getId() << " agendado para postagem." << std::endl;
-        } else {
-            std::cerr << "Erro: Armazém de origem ou destino não encontrado na topologia para pacote." << std::endl;
-        }
-    }
-    arquivo_entradas.close();
-    */
-    // Para fins de esqueleto, vamos criar um pacote de exemplo:
-    Time tempo_postagem_exemplo = Time::fromString("2025-01-01 08:00:00");
-    int ar_origem_exemplo_id = topologia_armazens.getIndice("Armazem_A");
-    int ar_destino_exemplo_id = topologia_armazens.getIndice("Armazem_C");
-
-    if (ar_origem_exemplo_id != -1 && ar_destino_exemplo_id != -1) {
-        Pacote pacote_exemplo(proximo_id_pacote++, tempo_postagem_exemplo, "Alice", "Bob", "Standard", ar_origem_exemplo_id, ar_destino_exemplo_id);
-
-        // TODO: Implementar algoritmo BFS para calcular a rota
-        // Por enquanto, uma rota simplificada: A -> B -> C
-        ListaEncadeada<int> rota_exemplo;
-        rota_exemplo.adicionar(topologia_armazens.getIndice("Armazem_B"));
-        rota_exemplo.adicionar(topologia_armazens.getIndice("Armazem_C"));
-        pacote_exemplo.setRota(rota_exemplo);
-
-
-        pacotes_no_sistema.adicionar(pacote_exemplo);
-        // Pacotes devem ser armazenados de forma que possam ser acessados por ID facilmente.
-        // O vetor pacotes_no_sistema pode servir a isso, mas considere um mapeamento se IDs não forem sequenciais.
-
-        insereEvento(EventoSimulacao(tempo_postagem_exemplo, EVENTO_CHEGADA_PACOTE, pacote_exemplo.getId(), ar_origem_exemplo_id, ar_origem_exemplo_id));
-        std::cout << "DEBUG: Pacote de exemplo " << pacote_exemplo.getId() << " agendado para postagem em " << tempo_postagem_exemplo.toHours() << "h." << std::endl;
+    while (!fila_eventos.vazia()) {
+        delete fila_eventos.removerMinimo();
     }
 }
 
-void Escalonador::agendarTransportesPeriodicos() {
-    // Uma vez por dia pacotes são transportados [cite: 12]
-    // Definir o intervalo de "um dia" em horas (ex: 24 horas)
-    Time intervalo_transporte_diario = Time(24.0);
+void Escalonador::carregarConfiguracao(int interv, int custo, int num_a) {
+    intervalo_transportes = interv;
+    custo_remocao = custo;
 
-    // Agendar o primeiro evento de transporte para cada ligação existente no grafo
-    // Assumimos que o transporte ocorrerá em um horário fixo diário, por exemplo, às 00:00 de cada dia,
-    // ou 24 horas após o início da simulação, e depois a cada 24 horas.
-    // Para simplificar, vamos agendar o transporte 24h após o tempo de postagem do primeiro pacote.
-    // No entanto, o pseudocódigo da Figura 2 sugere "Para cada ligação entre dois armazéns Escalona evento de transporte".
-    // Isso deve ser feito para cada *ligação*, ou seja, aresta do grafo.
+    for (int i = 0; i < num_a; ++i) {
+        Armazem a; a.setId(i);
+        armazens.adicionar(a);
+        rede_armazens.adicionarVertice(i);
+    }
+}
 
-    // Isso exige que o Grafo tenha um jeito de iterar sobre as arestas, ou iteramos sobre vértices e seus vizinhos
-    for (int u = 0; u < topologia_armazens.quantidadeVertices(); ++u) {
-        const Vetor<Aresta<double>>& vizinhos = topologia_armazens.vizinhos(u);
-        for (size_t i = 0; i < vizinhos.tamanho(); ++i) {
-            int v = vizinhos[i].idx_destino;
-            // Para evitar agendar o mesmo transporte duas vezes (A->B e B->A)
-            if (u < v) { // Garante que cada aresta é considerada uma vez
-                // Agenda o primeiro transporte para esta ligação.
-                // O tempo inicial pode ser o tempo atual + intervalo, ou o próximo "meio-dia"
-                Time tempo_primeiro_transporte = relogio_simulacao + intervalo_transporte_diario;
-                insereEvento(EventoSimulacao(tempo_primeiro_transporte, EVENTO_INICIO_TRANSPORTE, -1, u, v));
-                std::cout << "DEBUG: Transporte de " << topologia_armazens.getNome(u) << " para " << topologia_armazens.getNome(v) << " agendado para " << tempo_primeiro_transporte.toHours() << "h." << std::endl;
+void Escalonador::adicionarConexao(int u, int v) { rede_armazens.adicionarAresta(u, v, 1); }
+void Escalonador::adicionarPacote(const Pacote& p) { pacotes.adicionar(p); }
+void Escalonador::adicionarTransporte(const Transporte& t) { transportes.adicionar(t); }
+
+// -- Simulação --
+void Escalonador::prepararSimulacao() {
+    inicializarSecoesDosArmazens();
+    for (size_t i = 0; i < pacotes.tamanho(); ++i) calcularRotaParaPacote(pacotes[i]);
+
+    this->min_postagem_global = -1;
+    if (pacotes.tamanho() > 0) {
+        this->min_postagem_global = pacotes[0].getTempoPostagem();
+        for (size_t i = 1; i < pacotes.tamanho(); ++i) {
+            if (pacotes[i].getTempoPostagem() < this->min_postagem_global) {
+                this->min_postagem_global = pacotes[i].getTempoPostagem();
             }
         }
     }
-}
 
-// Verifica se todas as seções de todos os armazéns estão vazias
-bool Escalonador::todasSecoesArmazensVazias() const {
-    for (size_t i = 0; i < armazens.tamanho(); ++i) {
-        if (!armazens[i].todasSecoesVazias()) {
-            return false;
+    for (size_t i = 0; i < pacotes.tamanho(); ++i) fila_eventos.inserir(new EventoEntregaPacote(pacotes[i].getTempoPostagem(), pacotes[i].getId()));
+    for (int i = 0; i < rede_armazens.quantidadeVertices(); ++i) {
+        const Vetor<Aresta<int>>& vizinhos = rede_armazens.vizinhos(i);
+        for (size_t j = 0; j < vizinhos.tamanho(); ++j) {
+            fila_eventos.inserir(new EventoTransporte(intervalo_transportes, i, vizinhos[j].idx_destino));
         }
     }
-    return true;
 }
 
-void Escalonador::atualizarEstatisticas() {
-    // Aqui você coletaria e acumularia dados para as estatísticas gerais do sistema
-    // Ex: tempo médio de espera, utilização dos armazéns, identificar gargalos [cite: 14, 47]
-    // Isso seria feito iterando sobre os pacotes_no_sistema e os armazens.
-}
+void Escalonador::executar() {
+    while (pacotes_entregues < pacotes.tamanho()) {
+        if (fila_eventos.vazia()){ // Verificação de segurança
+            break; 
+        }
+        int tempo_atual_onda = fila_eventos.verMinimo()->tempo;
+        Vetor<Evento*> onda_de_eventos;
+        while (!fila_eventos.vazia() && fila_eventos.verMinimo()->tempo == tempo_atual_onda) {
+            onda_de_eventos.adicionar(fila_eventos.removerMinimo());
+        }
 
-void Escalonador::gerarRelatorios() {
-    // Imprimir as estatísticas finais para cada pacote:
-    // • Tempo esperado de estadia [cite: 19]
-    // • Tempo armazenado [cite: 19]
-    // • Tempo em trânsito [cite: 19]
-    // E estatísticas gerais do sistema.
-    /*
-    std::cout << "\n--- Relatório Final da Simulação ---" << std::endl;
-    for (size_t i = 0; i < pacotes_no_sistema.tamanho(); ++i) {
-        const Pacote& p = pacotes_no_sistema[i];
-        std::cout << "Pacote ID: " << p.getId()
-                  << ", Postagem: " << p.getTempoPostagem().toHours() << "h"
-                  << ", Destino: " << topologia_armazens.getNome(p.getArmazemDestino())
-                  << ", Estado Final: " << p.getEstado() // Você pode mapear o enum para string
-                  << ", Tempo Total no Sistema: " << p.calcularTempoTotalNoSistema(relogio_simulacao).toHours() << "h"
-                  << ", Tempo Armazenado: " << p.calcularTempoArmazenado().toHours() << "h"
-                  << ", Tempo em Trânsito: " << p.calcularTempoEmTransito().toHours() << "h"
-                  << ", Tempo Espera Manipulação: " << p.getTempoEspera().toHours() << "h"
-                  << ", Tempo Esperado Estadia (Mínimo): " << p.getTempoEsperadoEstadia().toHours() << "h" // Adicione o cálculo do esperado quando tiver
-                  << std::endl;
+        Vetor<Evento*> onda_pacotes;
+        Vetor<Evento*> onda_transportes;
+        for (size_t i = 0; i < onda_de_eventos.tamanho(); ++i) {
+            if (onda_de_eventos[i]->tipo == EVENTO_PACOTE) onda_pacotes.adicionar(onda_de_eventos[i]);
+            else onda_transportes.adicionar(onda_de_eventos[i]);
+        }
+        
+        std::sort(onda_pacotes.begin(), onda_pacotes.end(), [](Evento* a, Evento* b){
+            return static_cast<EventoEntregaPacote*>(a)->id_pacote < static_cast<EventoEntregaPacote*>(b)->id_pacote;
+        });
+
+        for (size_t i = 0; i < onda_pacotes.tamanho(); ++i) {
+            tempo_sistema = onda_pacotes[i]->tempo;
+            processarEventoEntrega(static_cast<EventoEntregaPacote*>(onda_pacotes[i]));
+            delete onda_pacotes[i];
+        }
+
+        if (onda_transportes.tamanho() > 0) {
+            tempo_sistema = onda_transportes[0]->tempo;
+            processarOndaDeTransporte(onda_transportes);
+        }
     }
-    */
-
-    // TODO: Adicionar estatísticas gerais do sistema aqui
 }
 
+void Escalonador::processarOndaDeTransporte(Vetor<Evento*>& onda) {
 
+    int tempo_base_operacao = onda[0]->tempo + custo_remocao + this->min_postagem_global;
+
+    std::sort(onda.begin(), onda.end(), [](Evento* a, Evento* b) {
+        EventoTransporte* et_a = static_cast<EventoTransporte*>(a);
+        EventoTransporte* et_b = static_cast<EventoTransporte*>(b);
+        if (et_a->id_origem != et_b->id_origem) return et_a->id_origem < et_b->id_origem;
+        return et_a->id_destino < et_b->id_destino;
+    });
+
+    struct OperacaoTransporte {
+        int origem, destino;
+        Vetor<Pacote> pacotes_removidos;
+    };
+    Vetor<OperacaoTransporte> operacoes;
+
+    for (size_t i = 0; i < onda.tamanho(); ++i) {
+        EventoTransporte* et = static_cast<EventoTransporte*>(onda[i]);
+        Armazem* armazem = getArmazemPorId(et->id_origem);
+        if (armazem && !armazem->getSecaoRef(et->id_destino).vazia()) {
+            OperacaoTransporte op = {et->id_origem, et->id_destino};
+            Pilha<Pacote>& secao = armazem->getSecaoRef(et->id_destino);
+            while(!secao.vazia()) op.pacotes_removidos.adicionar(secao.desempilhar());
+            operacoes.adicionar(op);
+        }
+        fila_eventos.inserir(new EventoTransporte(onda[i]->tempo + intervalo_transportes, et->id_origem, et->id_destino));
+        delete onda[i];
+    }
+    
+    for (size_t i = 0; i < operacoes.tamanho(); ++i) {
+        OperacaoTransporte& op = operacoes[i];
+        if (op.pacotes_removidos.tamanho() == 0) continue;
+
+
+        Transporte* rota_especifica = getTransportePorRota(op.origem, op.destino);
+        if (!rota_especifica) {
+            Armazem* armazem = getArmazemPorId(op.origem);
+            for(int j = op.pacotes_removidos.tamanho() - 1; j >= 0; --j) {
+                armazem->getSecaoRef(op.destino).empilhar(op.pacotes_removidos[j]);
+            }
+            continue; 
+        }
+
+        size_t capacidade_da_rota = rota_especifica->getCapacidadeMaxPacotes();
+        int latencia_da_rota = rota_especifica->getTempoTransportePorSegmento();
+
+        Vetor<Pacote*> ptrs_pacotes_originais;
+        for(size_t k = 0; k < op.pacotes_removidos.tamanho(); ++k){
+            ptrs_pacotes_originais.adicionar(getPacotePorId(op.pacotes_removidos[k].getId()));
+        }
+
+        std::sort(ptrs_pacotes_originais.begin(), ptrs_pacotes_originais.end(), 
+            [this](const Pacote* a, const Pacote* b){ 
+                // 1. Prioridade principal: maior tempo de espera na seção atual
+                int espera_a = this->tempo_sistema - a->getTempoChegadaAtual();
+                int espera_b = this->tempo_sistema - b->getTempoChegadaAtual();
+                
+                if (espera_a != espera_b) {
+                    return espera_a > espera_b;
+                }
+                
+                // 2. Desempate: pacote mais antigo por postagem
+                return a->getTempoPostagem() < b->getTempoPostagem();
+            });
+
+        Vetor<int> ids_que_viajam;
+        for (size_t k = 0; k < ptrs_pacotes_originais.tamanho() && k < capacidade_da_rota; ++k) {
+            ids_que_viajam.adicionar(ptrs_pacotes_originais[k]->getId());
+        }
+
+        Vetor<Pacote> a_serem_transportados;
+        Vetor<Pacote> a_serem_rearmazenados;
+        int tempo_final_op = 0;
+
+        for (size_t j = 0; j < op.pacotes_removidos.tamanho(); ++j) {
+            Pacote* p_original = getPacotePorId(op.pacotes_removidos[j].getId());
+
+            int tempo_operacao = tempo_base_operacao + (j * custo_remocao);
+            imprimirEvento(tempo_operacao, p_original->getId(), "removido de " + formatarNumero(op.origem, 3) + " na secao " + formatarNumero(op.destino, 3));
+   
+            p_original->addTempoEspera(custo_remocao * (j + 1));
+            p_original->addTempoTotal(custo_remocao * (j + 1));
+            
+            if (j == op.pacotes_removidos.tamanho() - 1) {
+                tempo_final_op = tempo_operacao;
+            }
+
+            bool vai_viajar = false;
+            for(size_t k = 0; k < ids_que_viajam.tamanho(); ++k) if(ids_que_viajam[k] == p_original->getId()) vai_viajar = true;
+            
+            if (vai_viajar) a_serem_transportados.adicionar(*p_original);
+            else a_serem_rearmazenados.adicionar(*p_original);
+        }
+        
+
+        if (op.pacotes_removidos.tamanho() <= capacidade_da_rota) {
+             std::sort(a_serem_transportados.begin(), a_serem_transportados.end(), 
+                [](const Pacote& a, const Pacote& b){ return a.getTempoPostagem() < b.getTempoPostagem(); });
+        } else {
+             std::sort(a_serem_transportados.begin(), a_serem_transportados.end(), 
+                [](const Pacote& a, const Pacote& b){ return a.getTempoPostagem() > b.getTempoPostagem(); });
+        }
+
+        for(size_t j = 0; j < a_serem_transportados.tamanho(); ++j) {
+            Pacote* p = getPacotePorId(a_serem_transportados[j].getId());
+
+
+            p->addTempoTransporte(latencia_da_rota);
+            p->addTempoTotal(latencia_da_rota);
+
+            imprimirEvento(tempo_final_op, p->getId(), "em transito de " + formatarNumero(op.origem, 3) + " para " + formatarNumero(op.destino, 3));
+            
+
+            fila_eventos.inserir(new EventoEntregaPacote(tempo_final_op + latencia_da_rota, p->getId()));
+        }
+        
+        for(int j = a_serem_rearmazenados.tamanho() - 1; j >= 0; --j) {
+            Pacote* p = getPacotePorId(a_serem_rearmazenados[j].getId());
+            imprimirEvento(tempo_final_op, p->getId(), "rearmazenado em " + formatarNumero(op.origem, 3) + " na secao " + formatarNumero(op.destino, 3));
+            getArmazemPorId(op.origem)->getSecaoRef(op.destino).empilhar(*p);
+        }
+    }
+}
+
+void Escalonador::processarEventoEntrega(EventoEntregaPacote* evento) {
+    Pacote* pacote = getPacotePorId(evento->id_pacote);
+    if (!pacote) return;
+
+    pacote->setTempoChegadaAtual(tempo_sistema);
+
+    if (pacote->getEstado() == NAO_FOI_POSTADO) {
+        pacote->setEstado(ARMAZENADO_EM_ARMAZEM);
+    } else {
+        pacote->avancarNaRota();
+    }
+    
+    Armazem* armazem_atual = getArmazemPorId(pacote->getArmazemAtual());
+
+    if (pacote->getArmazemAtual() == pacote->getArmazemDestino()) {
+        if (pacote->getEstado() != ENTREGUE) {
+            pacotes_entregues++;
+        }
+        pacote->setEstado(ENTREGUE);
+        imprimirEvento(tempo_sistema, pacote->getId(), "entregue em " + formatarNumero(armazem_atual->getId(), 3));
+    } else {
+        int proximo_armazem_id = pacote->getProximoArmazem();
+        armazem_atual->armazenaPacote(*pacote, proximo_armazem_id);
+        imprimirEvento(tempo_sistema, pacote->getId(), "armazenado em " + formatarNumero(armazem_atual->getId(), 3) + " na secao " + formatarNumero(proximo_armazem_id, 3));
+    }
+}
+
+// --- Funções Auxiliares (getters, etc.) ---
+void Escalonador::imprimirEvento(int tempo, int id_pacote, const std::string& msg) {
+    std::cout << formatarNumero(tempo, 7) << " pacote " << formatarNumero(id_pacote, 3) << " " << msg << std::endl;
+}
+
+void Escalonador::inicializarSecoesDosArmazens() {
+    for (int i = 0; i < rede_armazens.quantidadeVertices(); ++i) {
+        Armazem* armazem_atual = getArmazemPorId(i);
+        const Vetor<Aresta<int>>& vizinhos = rede_armazens.vizinhos(i);
+        for (size_t j = 0; j < vizinhos.tamanho(); ++j) {
+            armazem_atual->adicionarVizinhoESecao(vizinhos[j].idx_destino);
+        }
+    }
+}
+
+Pacote* Escalonador::getPacotePorId(int id) {
+    for (size_t i = 0; i < pacotes.tamanho(); ++i) {
+        if (pacotes[i].getId() == id) return &pacotes[i];
+    }
+    return nullptr;
+}
+
+Armazem* Escalonador::getArmazemPorId(int id) {
+    if (id >= 0 && static_cast<size_t>(id) < armazens.tamanho()) {
+        return &armazens[static_cast<size_t>(id)];
+    }
+    return nullptr;
+}
+
+Transporte* Escalonador::getTransportePorRota(int id_origem, int id_destino) {
+    for (size_t i = 0; i < transportes.tamanho(); ++i) {
+        if (transportes[i].getOrigemId() == id_origem && transportes[i].getDestinoId() == id_destino) {
+            return &transportes[i];
+        }
+    }
+    return nullptr; // Retorna nulo se a rota de transporte não foi definida
+}
+
+void Escalonador::calcularRotaParaPacote(Pacote& pacote) {
+    int origem = pacote.getArmazemOrigem();
+    int destino = pacote.getArmazemDestino();
+    int n = rede_armazens.quantidadeVertices();
+    if (origem == destino) {
+        ListaEncadeada<int> r; r.adicionar(origem); pacote.setRota(r); return;
+    }
+    ListaEncadeada<int> fila_bfs;
+    Vetor<bool> visitado(n, false);
+    Vetor<int> pred(n, -1);
+    fila_bfs.adicionar(origem);
+    visitado[origem] = true;
+    bool achou = false;
+    while (!fila_bfs.vazia()) {
+        int u = fila_bfs.removerPrimeiro();
+        if (u == destino) { achou = true; break; }
+        const Vetor<Aresta<int>>& vizinhos = rede_armazens.vizinhos(u);
+        for (size_t i = 0; i < vizinhos.tamanho(); ++i) {
+            int v = vizinhos[i].idx_destino;
+            if (!visitado[v]) {
+                visitado[v] = true;
+                pred[v] = u;
+                fila_bfs.adicionar(v);
+            }
+        }
+    }
+    ListaEncadeada<int> rota_final;
+    if (achou) {
+        for (int at = destino; at != -1; at = pred[at]) {
+            rota_final.adicionarNoInicio(at);
+        }
+    }
+    pacote.setRota(rota_final);
+}
