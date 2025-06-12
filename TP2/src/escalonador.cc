@@ -97,6 +97,10 @@ void Escalonador::processarEventoChegada(EventoChegadaPacote* evento) {
     if (armazem_atual_id == pacote->getArmazemDestino()) {
         pacote->setEstado(ENTREGUE);
         pacotes_entregues++;
+
+        int tempo_total = evento->tempo - pacote->getTempoPostagem();
+        pacote->addTempoTotal(tempo_total);
+        
         imprimirEvento(evento->tempo, pacote->getId(), "entregue em " + formatarNumero(armazem_atual_id, 3));
     } else {
         armazem_atual_id = pacote->getArmazemAtual(); // A rota já avançou
@@ -126,6 +130,11 @@ void Escalonador::processarEventoTransporte(EventoTransporte* evento) {
     while (!secao.vazia()) {
         Pacote p = secao.desempilhar();
         tempo_operacao += this->custo_remocao;
+
+        Pacote* p_original_ptr = getPacotePorId(p.getId());
+        int tempo_espera_desta_etapa = tempo_operacao - p_original_ptr->getTempoChegadaAtual();
+        p_original_ptr->addTempoEspera(tempo_espera_desta_etapa);
+
         imprimirEvento(tempo_operacao, p.getId(), "removido de " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
         pacotes_removidos_lifo.adicionar(p);
     }
@@ -160,6 +169,9 @@ void Escalonador::processarEventoTransporte(EventoTransporte* evento) {
         }
 
         if (vai_viajar) {
+            int latencia_da_rota = rota_transporte->getTempoTransportePorSegmento();
+            p_original->addTempoTransporte(latencia_da_rota);
+
             imprimirEvento(tempo_final_op, p_original->getId(), "em transito de " + formatarNumero(origem, 3) + " para " + formatarNumero(destino, 3));
             int tempo_chegada = tempo_final_op + rota_transporte->getTempoTransportePorSegmento();
             fila_eventos.inserir(new EventoChegadaPacote(tempo_chegada, p_original->getId()));

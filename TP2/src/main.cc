@@ -3,8 +3,6 @@
 #include <string>
 
 #include "escalonador.h"
-
-// Arquivo que agora contém Pacote, Transporte e Armazem
 #include "pacote.h"
 #include "transporte.h"
 #include "armazem.h"
@@ -59,7 +57,6 @@ int main(int argc, char* argv[]) {
         std::string str_pac, str_org, str_dst;
         arquivo_entrada >> tempo_postagem >> str_pac >> id_original >> str_org >> origem >> str_dst >> destino;
 
-        // Note que o custo_remocao não é mais passado para o Pacote
         Pacote novo_pacote(i, tempo_postagem, origem, destino, custo_remocao);
         escalonador.adicionarPacote(novo_pacote);
     }
