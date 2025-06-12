@@ -1,260 +1,185 @@
 #include "escalonador.h"
 
-// Função auxiliar para formatar números
-inline std::string formatarNumero(int numero, int largura) {
-    std::stringstream ss;
-    ss << std::setw(largura) << std::setfill('0') << numero;
-    return ss.str();
-}
+Escalonador::Escalonador() : tempo_sistema(0), pacotes_entregues(0), total_pacotes_na_simulacao(0) {}
 
-// --- Implementações da Classe Escalonador ---
-
-Escalonador::Escalonador() : tempo_sistema(0), pacotes_entregues(0) {}
 Escalonador::~Escalonador() {
     while (!fila_eventos.vazia()) {
         delete fila_eventos.removerMinimo();
     }
 }
 
-void Escalonador::carregarConfiguracao(int interv, int custo, int num_a) {
-    intervalo_transportes = interv;
-    custo_remocao = custo;
+void Escalonador::carregarConfiguracao(int interv_transp, int custo_rem, int num_armazens) {
+    this->intervalo_transportes = interv_transp;
+    this->custo_remocao = custo_rem;
 
-    for (int i = 0; i < num_a; ++i) {
-        Armazem a; a.setId(i);
+    for (int i = 0; i < num_armazens; ++i) {
+        Armazem a;
+        a.setId(i);
         armazens.adicionar(a);
         rede_armazens.adicionarVertice(i);
     }
 }
 
-void Escalonador::adicionarConexao(int u, int v) { rede_armazens.adicionarAresta(u, v, 1); }
-void Escalonador::adicionarPacote(const Pacote& p) { pacotes.adicionar(p); }
-void Escalonador::adicionarTransporte(const Transporte& t) { transportes.adicionar(t); }
+void Escalonador::adicionarConexao(int u, int v) {
+    rede_armazens.adicionarAresta(u, v, 1);
+    // O grafo já adiciona a aresta de volta
+    getArmazemPorId(u)->adicionarVizinhoESecao(v);
+    getArmazemPorId(v)->adicionarVizinhoESecao(u);
+}
 
-// -- Simulação --
+void Escalonador::adicionarPacote(const Pacote& p) {
+    pacotes.adicionar(p);
+}
+
+void Escalonador::adicionarTransporte(const Transporte& t) {
+    transportes.adicionar(t);
+}
+
 void Escalonador::prepararSimulacao() {
-    inicializarSecoesDosArmazens();
-    for (size_t i = 0; i < pacotes.tamanho(); ++i) calcularRotaParaPacote(pacotes[i]);
+    this->total_pacotes_na_simulacao = pacotes.tamanho();
+    this->pacotes_entregues = 0;
 
-    this->min_postagem_global = -1;
-    if (pacotes.tamanho() > 0) {
-        this->min_postagem_global = pacotes[0].getTempoPostagem();
-        for (size_t i = 1; i < pacotes.tamanho(); ++i) {
-            if (pacotes[i].getTempoPostagem() < this->min_postagem_global) {
-                this->min_postagem_global = pacotes[i].getTempoPostagem();
-            }
+    if (total_pacotes_na_simulacao == 0) return; 
+
+    // Encontrar o tempo do primeiro evento da simulação (a postagem mais cedo)
+    int tempo_inicio_simulacao = pacotes[0].getTempoPostagem();
+    for (size_t i = 1; i < pacotes.tamanho(); ++i) {
+        if (pacotes[i].getTempoPostagem() < tempo_inicio_simulacao) {
+            tempo_inicio_simulacao = pacotes[i].getTempoPostagem();
         }
     }
 
-    for (size_t i = 0; i < pacotes.tamanho(); ++i) fila_eventos.inserir(new EventoEntregaPacote(pacotes[i].getTempoPostagem(), pacotes[i].getId()));
-    for (int i = 0; i < rede_armazens.quantidadeVertices(); ++i) {
-        const Vetor<Aresta<int>>& vizinhos = rede_armazens.vizinhos(i);
-        for (size_t j = 0; j < vizinhos.tamanho(); ++j) {
-            fila_eventos.inserir(new EventoTransporte(intervalo_transportes, i, vizinhos[j].idx_destino));
-        }
+    for (size_t i = 0; i < pacotes.tamanho(); ++i) {
+        calcularRotaParaPacote(pacotes[i]);
+        fila_eventos.inserir(new EventoChegadaPacote(pacotes[i].getTempoPostagem(), pacotes[i].getId()));
+    }
+
+    // Agenda o primeiro transporte para cada rota definida
+    for (size_t i = 0; i < transportes.tamanho(); ++i) {
+        int origem = transportes[i].getOrigemId();
+        int destino = transportes[i].getDestinoId();
+        
+        // O primeiro transporte acontece 'intervalo' após o início da atividade
+        int tempo_primeiro_transporte = tempo_inicio_simulacao + intervalo_transportes;
+        
+        fila_eventos.inserir(new EventoTransporte(tempo_primeiro_transporte, origem, destino));
     }
 }
 
 void Escalonador::executar() {
-    while (pacotes_entregues < pacotes.tamanho()) {
-        if (fila_eventos.vazia()){ // Verificação de segurança
-            break; 
-        }
-        int tempo_atual_onda = fila_eventos.verMinimo()->tempo;
-        Vetor<Evento*> onda_de_eventos;
-        while (!fila_eventos.vazia() && fila_eventos.verMinimo()->tempo == tempo_atual_onda) {
-            onda_de_eventos.adicionar(fila_eventos.removerMinimo());
-        }
+    while (pacotes_entregues < total_pacotes_na_simulacao) {
+        if (fila_eventos.vazia()) break;
 
-        Vetor<Evento*> onda_pacotes;
-        Vetor<Evento*> onda_transportes;
-        for (size_t i = 0; i < onda_de_eventos.tamanho(); ++i) {
-            if (onda_de_eventos[i]->tipo == EVENTO_PACOTE) onda_pacotes.adicionar(onda_de_eventos[i]);
-            else onda_transportes.adicionar(onda_de_eventos[i]);
-        }
-        
-        std::sort(onda_pacotes.begin(), onda_pacotes.end(), [](Evento* a, Evento* b){
-            return static_cast<EventoEntregaPacote*>(a)->id_pacote < static_cast<EventoEntregaPacote*>(b)->id_pacote;
-        });
+        Evento* proximo_evento = fila_eventos.removerMinimo();
+        this->tempo_sistema = proximo_evento->tempo;
 
-        for (size_t i = 0; i < onda_pacotes.tamanho(); ++i) {
-            tempo_sistema = onda_pacotes[i]->tempo;
-            processarEventoEntrega(static_cast<EventoEntregaPacote*>(onda_pacotes[i]));
-            delete onda_pacotes[i];
-        }
-
-        if (onda_transportes.tamanho() > 0) {
-            tempo_sistema = onda_transportes[0]->tempo;
-            processarOndaDeTransporte(onda_transportes);
-        }
-    }
-}
-
-void Escalonador::processarOndaDeTransporte(Vetor<Evento*>& onda) {
-
-    int tempo_base_operacao = onda[0]->tempo + custo_remocao + this->min_postagem_global;
-
-    std::sort(onda.begin(), onda.end(), [](Evento* a, Evento* b) {
-        EventoTransporte* et_a = static_cast<EventoTransporte*>(a);
-        EventoTransporte* et_b = static_cast<EventoTransporte*>(b);
-        if (et_a->id_origem != et_b->id_origem) return et_a->id_origem < et_b->id_origem;
-        return et_a->id_destino < et_b->id_destino;
-    });
-
-    struct OperacaoTransporte {
-        int origem, destino;
-        Vetor<Pacote> pacotes_removidos;
-    };
-    Vetor<OperacaoTransporte> operacoes;
-
-    for (size_t i = 0; i < onda.tamanho(); ++i) {
-        EventoTransporte* et = static_cast<EventoTransporte*>(onda[i]);
-        Armazem* armazem = getArmazemPorId(et->id_origem);
-        if (armazem && !armazem->getSecaoRef(et->id_destino).vazia()) {
-            OperacaoTransporte op = {et->id_origem, et->id_destino};
-            Pilha<Pacote>& secao = armazem->getSecaoRef(et->id_destino);
-            while(!secao.vazia()) op.pacotes_removidos.adicionar(secao.desempilhar());
-            operacoes.adicionar(op);
-        }
-        fila_eventos.inserir(new EventoTransporte(onda[i]->tempo + intervalo_transportes, et->id_origem, et->id_destino));
-        delete onda[i];
-    }
-    
-    for (size_t i = 0; i < operacoes.tamanho(); ++i) {
-        OperacaoTransporte& op = operacoes[i];
-        if (op.pacotes_removidos.tamanho() == 0) continue;
-
-
-        Transporte* rota_especifica = getTransportePorRota(op.origem, op.destino);
-        if (!rota_especifica) {
-            Armazem* armazem = getArmazemPorId(op.origem);
-            for(int j = op.pacotes_removidos.tamanho() - 1; j >= 0; --j) {
-                armazem->getSecaoRef(op.destino).empilhar(op.pacotes_removidos[j]);
-            }
-            continue; 
-        }
-
-        size_t capacidade_da_rota = rota_especifica->getCapacidadeMaxPacotes();
-        int latencia_da_rota = rota_especifica->getTempoTransportePorSegmento();
-
-        Vetor<Pacote*> ptrs_pacotes_originais;
-        for(size_t k = 0; k < op.pacotes_removidos.tamanho(); ++k){
-            ptrs_pacotes_originais.adicionar(getPacotePorId(op.pacotes_removidos[k].getId()));
-        }
-
-        std::sort(ptrs_pacotes_originais.begin(), ptrs_pacotes_originais.end(), 
-            [this](const Pacote* a, const Pacote* b){ 
-                // 1. Prioridade principal: maior tempo de espera na seção atual
-                int espera_a = this->tempo_sistema - a->getTempoChegadaAtual();
-                int espera_b = this->tempo_sistema - b->getTempoChegadaAtual();
-                
-                if (espera_a != espera_b) {
-                    return espera_a > espera_b;
-                }
-                
-                // 2. Desempate: pacote mais antigo por postagem
-                return a->getTempoPostagem() < b->getTempoPostagem();
-            });
-
-        Vetor<int> ids_que_viajam;
-        for (size_t k = 0; k < ptrs_pacotes_originais.tamanho() && k < capacidade_da_rota; ++k) {
-            ids_que_viajam.adicionar(ptrs_pacotes_originais[k]->getId());
-        }
-
-        Vetor<Pacote> a_serem_transportados;
-        Vetor<Pacote> a_serem_rearmazenados;
-        int tempo_final_op = 0;
-
-        for (size_t j = 0; j < op.pacotes_removidos.tamanho(); ++j) {
-            Pacote* p_original = getPacotePorId(op.pacotes_removidos[j].getId());
-
-            int tempo_operacao = tempo_base_operacao + (j * custo_remocao);
-            imprimirEvento(tempo_operacao, p_original->getId(), "removido de " + formatarNumero(op.origem, 3) + " na secao " + formatarNumero(op.destino, 3));
-   
-            p_original->addTempoEspera(custo_remocao * (j + 1));
-            p_original->addTempoTotal(custo_remocao * (j + 1));
-            
-            if (j == op.pacotes_removidos.tamanho() - 1) {
-                tempo_final_op = tempo_operacao;
-            }
-
-            bool vai_viajar = false;
-            for(size_t k = 0; k < ids_que_viajam.tamanho(); ++k) if(ids_que_viajam[k] == p_original->getId()) vai_viajar = true;
-            
-            if (vai_viajar) a_serem_transportados.adicionar(*p_original);
-            else a_serem_rearmazenados.adicionar(*p_original);
-        }
-        
-
-        if (op.pacotes_removidos.tamanho() <= capacidade_da_rota) {
-             std::sort(a_serem_transportados.begin(), a_serem_transportados.end(), 
-                [](const Pacote& a, const Pacote& b){ return a.getTempoPostagem() < b.getTempoPostagem(); });
+        if (proximo_evento->tipo == EVENTO_CHEGADA_PACOTE) {
+            processarEventoChegada(static_cast<EventoChegadaPacote*>(proximo_evento));
         } else {
-             std::sort(a_serem_transportados.begin(), a_serem_transportados.end(), 
-                [](const Pacote& a, const Pacote& b){ return a.getTempoPostagem() > b.getTempoPostagem(); });
+            processarEventoTransporte(static_cast<EventoTransporte*>(proximo_evento));
         }
-
-        for(size_t j = 0; j < a_serem_transportados.tamanho(); ++j) {
-            Pacote* p = getPacotePorId(a_serem_transportados[j].getId());
-
-
-            p->addTempoTransporte(latencia_da_rota);
-            p->addTempoTotal(latencia_da_rota);
-
-            imprimirEvento(tempo_final_op, p->getId(), "em transito de " + formatarNumero(op.origem, 3) + " para " + formatarNumero(op.destino, 3));
-            
-
-            fila_eventos.inserir(new EventoEntregaPacote(tempo_final_op + latencia_da_rota, p->getId()));
-        }
-        
-        for(int j = a_serem_rearmazenados.tamanho() - 1; j >= 0; --j) {
-            Pacote* p = getPacotePorId(a_serem_rearmazenados[j].getId());
-            imprimirEvento(tempo_final_op, p->getId(), "rearmazenado em " + formatarNumero(op.origem, 3) + " na secao " + formatarNumero(op.destino, 3));
-            getArmazemPorId(op.origem)->getSecaoRef(op.destino).empilhar(*p);
-        }
+        delete proximo_evento;
     }
 }
 
-void Escalonador::processarEventoEntrega(EventoEntregaPacote* evento) {
+void Escalonador::processarEventoChegada(EventoChegadaPacote* evento) {
     Pacote* pacote = getPacotePorId(evento->id_pacote);
-    if (!pacote) return;
+    if (!pacote || pacote->getEstado() == ENTREGUE) return;
 
-    pacote->setTempoChegadaAtual(tempo_sistema);
-
-    if (pacote->getEstado() == NAO_FOI_POSTADO) {
-        pacote->setEstado(ARMAZENADO_EM_ARMAZEM);
-    } else {
+    if (pacote->getEstado() != NAO_FOI_POSTADO) {
         pacote->avancarNaRota();
     }
-    
-    Armazem* armazem_atual = getArmazemPorId(pacote->getArmazemAtual());
+    pacote->setEstado(ARMAZENADO_EM_ARMAZEM);
+    pacote->setTempoChegadaAtual(evento->tempo);
 
-    if (pacote->getArmazemAtual() == pacote->getArmazemDestino()) {
-        if (pacote->getEstado() != ENTREGUE) {
-            pacotes_entregues++;
-        }
+    int armazem_atual_id = pacote->getArmazemAtual();
+
+    if (armazem_atual_id == pacote->getArmazemDestino()) {
         pacote->setEstado(ENTREGUE);
-        imprimirEvento(tempo_sistema, pacote->getId(), "entregue em " + formatarNumero(armazem_atual->getId(), 3));
+        pacotes_entregues++;
+        imprimirEvento(evento->tempo, pacote->getId(), "entregue em " + formatarNumero(armazem_atual_id, 3));
     } else {
+        armazem_atual_id = pacote->getArmazemAtual(); // A rota já avançou
         int proximo_armazem_id = pacote->getProximoArmazem();
-        armazem_atual->armazenaPacote(*pacote, proximo_armazem_id);
-        imprimirEvento(tempo_sistema, pacote->getId(), "armazenado em " + formatarNumero(armazem_atual->getId(), 3) + " na secao " + formatarNumero(proximo_armazem_id, 3));
+        getArmazemPorId(armazem_atual_id)->armazenaPacote(*pacote, proximo_armazem_id);
+        imprimirEvento(evento->tempo, pacote->getId(), "armazenado em " + formatarNumero(armazem_atual_id, 3) + " na secao " + formatarNumero(proximo_armazem_id, 3));
     }
 }
 
-// --- Funções Auxiliares (getters, etc.) ---
+void Escalonador::processarEventoTransporte(EventoTransporte* evento) {
+    int origem = evento->id_origem;
+    int destino = evento->id_destino;
+
+    fila_eventos.inserir(new EventoTransporte(evento->tempo + intervalo_transportes, origem, destino));
+
+    Armazem* armazem_origem = getArmazemPorId(origem);
+    if (armazem_origem->isSecaoVazia(destino)) return;
+
+    // Busca o transporte específico para esta rota para pegar capacidade e latência
+    Transporte* rota_transporte = getTransportePorRota(origem, destino);
+    if (!rota_transporte) return; // Rota não definida, não faz nada
+
+    Pilha<Pacote>& secao = armazem_origem->getSecaoRef(destino);
+    Vetor<Pacote> pacotes_removidos_lifo;
+    int tempo_operacao = evento->tempo;
+
+    while (!secao.vazia()) {
+        Pacote p = secao.desempilhar();
+        tempo_operacao += this->custo_remocao;
+        imprimirEvento(tempo_operacao, p.getId(), "removido de " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
+        pacotes_removidos_lifo.adicionar(p);
+    }
+    int tempo_final_op = tempo_operacao;
+
+    Vetor<Pacote*> pacotes_para_ordenar;
+    for (size_t i = 0; i < pacotes_removidos_lifo.tamanho(); ++i) {
+        pacotes_para_ordenar.adicionar(getPacotePorId(pacotes_removidos_lifo[i].getId()));
+    }
+    
+    int evento_tempo = evento->tempo;
+    quickSort(pacotes_para_ordenar, [evento_tempo](const Pacote* a, const Pacote* b) {
+        int espera_a = evento_tempo - a->getTempoChegadaAtual();
+        int espera_b = evento_tempo - b->getTempoChegadaAtual();
+        if (espera_a != espera_b) return espera_a > espera_b;
+        return a->getTempoPostagem() < b->getTempoPostagem();
+    });
+
+    Vetor<int> ids_para_transportar;
+    for (size_t i = 0; i < pacotes_para_ordenar.tamanho() && i < (size_t)rota_transporte->getCapacidadeMaxPacotes(); ++i) {
+        ids_para_transportar.adicionar(pacotes_para_ordenar[i]->getId());
+    }
+
+    for (int i = pacotes_removidos_lifo.tamanho() - 1; i >= 0; --i) {
+        Pacote* p_original = getPacotePorId(pacotes_removidos_lifo[i].getId());
+        bool vai_viajar = false;
+        for (size_t k = 0; k < ids_para_transportar.tamanho(); ++k) {
+            if (ids_para_transportar[k] == p_original->getId()) {
+                vai_viajar = true;
+                break;
+            }
+        }
+
+        if (vai_viajar) {
+            imprimirEvento(tempo_final_op, p_original->getId(), "em transito de " + formatarNumero(origem, 3) + " para " + formatarNumero(destino, 3));
+            int tempo_chegada = tempo_final_op + rota_transporte->getTempoTransportePorSegmento();
+            fila_eventos.inserir(new EventoChegadaPacote(tempo_chegada, p_original->getId()));
+        } else {
+            imprimirEvento(tempo_final_op, p_original->getId(), "rearmazenado em " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
+            secao.empilhar(*p_original);
+        }
+    }
+}
+
+// --- Funções Auxiliares ---
+
+std::string Escalonador::formatarNumero(int numero, int largura) {
+    std::stringstream ss;
+    ss << std::setw(largura) << std::setfill('0') << numero;
+    return ss.str();
+}
+
 void Escalonador::imprimirEvento(int tempo, int id_pacote, const std::string& msg) {
     std::cout << formatarNumero(tempo, 7) << " pacote " << formatarNumero(id_pacote, 3) << " " << msg << std::endl;
-}
-
-void Escalonador::inicializarSecoesDosArmazens() {
-    for (int i = 0; i < rede_armazens.quantidadeVertices(); ++i) {
-        Armazem* armazem_atual = getArmazemPorId(i);
-        const Vetor<Aresta<int>>& vizinhos = rede_armazens.vizinhos(i);
-        for (size_t j = 0; j < vizinhos.tamanho(); ++j) {
-            armazem_atual->adicionarVizinhoESecao(vizinhos[j].idx_destino);
-        }
-    }
 }
 
 Pacote* Escalonador::getPacotePorId(int id) {
@@ -265,8 +190,8 @@ Pacote* Escalonador::getPacotePorId(int id) {
 }
 
 Armazem* Escalonador::getArmazemPorId(int id) {
-    if (id >= 0 && static_cast<size_t>(id) < armazens.tamanho()) {
-        return &armazens[static_cast<size_t>(id)];
+    if (id >= 0 && (size_t)id < armazens.tamanho()) {
+        return &armazens[(size_t)id];
     }
     return nullptr;
 }
@@ -277,25 +202,34 @@ Transporte* Escalonador::getTransportePorRota(int id_origem, int id_destino) {
             return &transportes[i];
         }
     }
-    return nullptr; // Retorna nulo se a rota de transporte não foi definida
+    return nullptr; // Rota não encontrada
 }
 
 void Escalonador::calcularRotaParaPacote(Pacote& pacote) {
     int origem = pacote.getArmazemOrigem();
     int destino = pacote.getArmazemDestino();
-    int n = rede_armazens.quantidadeVertices();
+    ListaEncadeada<int> rota_final;
+
     if (origem == destino) {
-        ListaEncadeada<int> r; r.adicionar(origem); pacote.setRota(r); return;
+        rota_final.adicionar(origem);
+        pacote.setRota(rota_final);
+        return;
     }
+
     ListaEncadeada<int> fila_bfs;
-    Vetor<bool> visitado(n, false);
-    Vetor<int> pred(n, -1);
+    Vetor<bool> visitado(rede_armazens.quantidadeVertices(), false);
+    Vetor<int> pred(rede_armazens.quantidadeVertices(), -1);
+
     fila_bfs.adicionar(origem);
     visitado[origem] = true;
     bool achou = false;
+
     while (!fila_bfs.vazia()) {
         int u = fila_bfs.removerPrimeiro();
-        if (u == destino) { achou = true; break; }
+        if (u == destino) {
+            achou = true;
+            break;
+        }
         const Vetor<Aresta<int>>& vizinhos = rede_armazens.vizinhos(u);
         for (size_t i = 0; i < vizinhos.tamanho(); ++i) {
             int v = vizinhos[i].idx_destino;
@@ -306,7 +240,7 @@ void Escalonador::calcularRotaParaPacote(Pacote& pacote) {
             }
         }
     }
-    ListaEncadeada<int> rota_final;
+
     if (achou) {
         for (int at = destino; at != -1; at = pred[at]) {
             rota_final.adicionarNoInicio(at);

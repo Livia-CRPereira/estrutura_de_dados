@@ -2,7 +2,6 @@
 #define PACOTE_H
 
 #include "estruturas_auxiliares.h"
-#include "armazem.h"
 
 /**
  * @brief Enumera os possíveis estados de um pacote dentro do sistema logístico.

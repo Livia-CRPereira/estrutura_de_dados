@@ -13,8 +13,7 @@
  * @brief Representa um armazém ou centro de distribuição na rede logística.
  * @details Um armazém gerencia o armazenamento de pacotes em seções, onde cada
  * seção é uma pilha LIFO (Last-In, First-Out) de pacotes destinados a um
- * armazém vizinho específico. Ele também possui uma pilha auxiliar para
- * manobras internas de pacotes.
+ * armazém vizinho específico. 
  */
 class Armazem {
     public:
@@ -94,72 +93,6 @@ class Armazem {
         }
 
         /**
-         * @brief Move um pacote de uma seção para a pilha auxiliar.
-         * @details Usado para acessar pacotes que não estão no topo de uma seção.
-         * @param proximo_armazem_destino_id ID que define a seção de origem.
-         * @param tempo_atual_simulacao O tempo atual da simulação (pode ser usado para logs).
-         * @param custo_movimento O custo de tempo a ser adicionado ao pacote por esta operação.
-         */
-        void empilharNaAuxiliar(int proximo_armazem_destino_id, int tempo_atual_simulacao, int custo_movimento) {
-            try {
-                int secao_idx = getSecaoIndex(proximo_armazem_destino_id);
-                if (secoes[secao_idx].vazia()) {
-                    throw std::runtime_error("Seção vazia, impossível empilhar na auxiliar.");
-                }
-                Pacote pacote_movido = secoes[secao_idx].desempilhar();
-                pilha_auxiliar.empilhar(pacote_movido);
-
-                pacote_movido.addTempoEspera(custo_movimento);
-                pacote_movido.addTempoTotal(custo_movimento);
-            } catch (const std::runtime_error& e) {
-                std::cerr << "Erro em armazém " << id << " ao empilhar na auxiliar: " << e.what() << std::endl;
-                throw;
-            }
-        }
-
-        /**
-         * @brief Move um pacote da pilha auxiliar de volta para sua seção de origem.
-         * @param proximo_armazem_destino_id ID que define a seção de destino.
-         * @param tempo_atual_simulacao O tempo atual da simulação.
-         * @param custo_movimento O custo de tempo a ser adicionado ao pacote por esta operação.
-         */
-        void reempilharDaAuxiliar(int proximo_armazem_destino_id, int tempo_atual_simulacao, int custo_movimento) {
-            try {
-                int secao_idx = getSecaoIndex(proximo_armazem_destino_id);
-                if (pilha_auxiliar.vazia()) {
-                    throw std::runtime_error("Pilha auxiliar vazia, impossível reempilhar.");
-                }
-                Pacote pacote_reempilhado = pilha_auxiliar.desempilhar();
-                secoes[secao_idx].empilhar(pacote_reempilhado);
-
-                pacote_reempilhado.addTempoEspera(custo_movimento);
-                pacote_reempilhado.addTempoTotal(custo_movimento);
-
-            } catch (const std::runtime_error& e) {
-                std::cerr << "Erro em armazém " << id << " ao reempilhar da auxiliar: " << e.what() << std::endl;
-                throw;
-            }
-        }
-
-        /**
-         * @brief Remove e retorna um pacote da pilha auxiliar.
-         * @param tempo_atual_simulacao O tempo atual da simulação.
-         * @param custo_movimento O custo de tempo a ser adicionado ao pacote.
-         * @return O pacote removido da pilha auxiliar.
-         * @throws std::runtime_error se a pilha auxiliar estiver vazia.
-         */
-        Pacote desempilharDaAuxiliar(int tempo_atual_simulacao, int custo_movimento) {
-            if (pilha_auxiliar.vazia()) {
-                throw std::runtime_error("Pilha auxiliar vazia, impossível desempilhar.");
-            }
-            Pacote pacote_desempilhado = pilha_auxiliar.desempilhar();
-
-            pacote_desempilhado.addTempoEspera(custo_movimento);
-            pacote_desempilhado.addTempoTotal(custo_movimento);
-            return pacote_desempilhado;
-        }
-
-        /**
          * @brief Adiciona dinamicamente um novo vizinho e a seção de armazenamento correspondente.
          * @param id_vizinho O ID do novo armazém vizinho.
          */
@@ -197,7 +130,7 @@ class Armazem {
                     return false;
                 }
             }
-            return pilha_auxiliar.vazia();
+            return true;
         }
 
         /**
@@ -223,12 +156,6 @@ class Armazem {
             int secao_idx = getSecaoIndex(proximo_armazem_destino_id);
             return secoes[secao_idx];
         }
-
-        /**
-         * @brief Obtém uma referência para a pilha auxiliar.
-         * @return Uma referência para a pilha auxiliar de pacotes.
-         */
-        Pilha<Pacote>& getPilhaAuxiliarRef() { return pilha_auxiliar; }
 
         /**
          * @brief Remove um lote de pacotes de uma seção para transporte.
@@ -278,7 +205,6 @@ class Armazem {
         int id; // ID único do armazém.
         Vetor<int> id_dos_vizinhos; // Vetor que armazena os IDs dos armazéns vizinhos. A ordem é importante.
         Vetor<Pilha<Pacote>> secoes; // Vetor de seções, onde cada seção é uma pilha. A ordem corresponde a `id_dos_vizinhos`
-        Pilha<Pacote> pilha_auxiliar; // Pilha temporária usada para manobras internas de pacotes.
 };
 
 #endif // ARMAZEM_H
