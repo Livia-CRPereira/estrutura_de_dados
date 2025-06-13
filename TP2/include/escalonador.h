@@ -11,6 +11,7 @@
 #include "armazem.h"
 #include "transporte.h"
 #include "ordenacao.h" 
+#include "hashmap.h"
 
 // --- Estruturas de Evento ---
 
@@ -18,8 +19,8 @@
  * @brief Enumera os tipos de eventos que podem ocorrer na simulação.
  */
 enum TipoEvento {
-    EVENTO_CHEGADA_PACOTE, ///< Um evento relacionado à chegada de um pacote a um armazém ou destino.
-    EVENTO_TRANSPORTE      ///< Um evento que dispara o processo de transporte em uma rota específica.
+    EVENTO_CHEGADA_PACOTE, // Um evento relacionado à chegada de um pacote a um armazém ou destino.
+    EVENTO_TRANSPORTE      // Um evento que dispara o processo de transporte em uma rota específica.
 };
 
 /**
@@ -28,9 +29,9 @@ enum TipoEvento {
  * seu tipo, e uma chave única para ordenação precisa na fila de prioridades.
  */
 struct Evento {
-    long long chave;   ///< Chave numérica para ordenação inequívoca na fila de prioridades.
-    int tempo;         ///< O instante de tempo da simulação em que o evento deve ocorrer.
-    TipoEvento tipo;   ///< O tipo do evento, para sabermos como processá-lo.
+    long long chave;   // Chave numérica para ordenação inequívoca na fila de prioridades.
+    int tempo;         // O instante de tempo da simulação em que o evento deve ocorrer.
+    TipoEvento tipo;   // O tipo do evento, para sabermos como processá-lo.
     virtual ~Evento() {}
 };
 
@@ -39,7 +40,7 @@ struct Evento {
  * @details Deriva de Evento e adiciona o ID do pacote envolvido.
  */
 struct EventoChegadaPacote : public Evento {
-    int id_pacote; ///< O ID do pacote que está chegando.
+    int id_pacote; // O ID do pacote que está chegando.
 
     EventoChegadaPacote(int t, int id) : id_pacote(id) {
         this->tempo = t;
@@ -55,8 +56,8 @@ struct EventoChegadaPacote : public Evento {
  * @details Deriva de Evento e adiciona os IDs da rota de transporte.
  */
 struct EventoTransporte : public Evento {
-    int id_origem;  ///< O ID do armazém de origem da rota.
-    int id_destino; ///< O ID do armazém de destino da rota.
+    int id_origem;  // O ID do armazém de origem da rota.
+    int id_destino; // O ID do armazém de destino da rota.
 
     EventoTransporte(int t, int origem, int destino) : id_origem(origem), id_destino(destino) {
         this->tempo = t;
@@ -162,10 +163,15 @@ private:
 
     // --- Estruturas de Dados Principais ---
     Grafo<int, int> rede_armazens;             // Grafo que representa a rede de armazéns e suas conexões.
-    Vetor<Armazem> armazens;                   // Vetor que armazena todos os objetos Armazem.
-    Vetor<Pacote> pacotes;                     // Vetor que armazena todos os objetos Pacote da simulação.
-    Vetor<Transporte> transportes;             // Vetor que armazena todos os objetos Transporte (rotas).
+    Vetor<Armazem*> armazens;                   // Vetor que armazena todos os ponteiros para Armazem.
+    Vetor<Pacote*> pacotes;                     // Vetor que armazena todos os ponteiros para Pacote da simulação.
+    Vetor<Transporte*> transportes;             // Vetor que armazena todos os ponteiros para Transporte (rotas).
     minHeap<Evento*, ComparadorEventos> fila_eventos; // Fila de prioridade (min-heap) que gerencia todos os eventos futuros.
+
+    // --- Mapas para acesso rápido ---
+    HashMap<int, Pacote*> mapa_pacotes;
+    HashMap<int, Armazem*> mapa_armazens;
+    HashMap<long long, Transporte*> mapa_transportes;
 
     // --- Métodos de Processamento de Eventos ---
     /**

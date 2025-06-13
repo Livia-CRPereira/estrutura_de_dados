@@ -25,7 +25,7 @@ class Pacote{
     public:
         /**
          * @brief Construtor padrão.
-         * @details Cria um pacote com valores padrão/inválidos.
+          * @details Cria um pacote com valores padrão/inválidos.
          */
         Pacote() : id(-1), tempo_postagem(0), custo_remocao(0),
                    tempo_em_espera(0), tempo_em_transporte(0), tempo_total_no_sistema(0), tempo_chegada_armazem_atual(0),

@@ -1,10 +1,23 @@
 #include "escalonador.h"
 
-Escalonador::Escalonador() : tempo_sistema(0), pacotes_entregues(0), total_pacotes_na_simulacao(0) {}
+Escalonador::Escalonador() : tempo_sistema(0), pacotes_entregues(0), total_pacotes_na_simulacao(0),
+                            mapa_pacotes(1009), mapa_armazens(251), mapa_transportes(1009) {}
 
 Escalonador::~Escalonador() {
+    // Libera os eventos da fila
     while (!fila_eventos.vazia()) {
         delete fila_eventos.removerMinimo();
+    }
+
+    // Libera a memória de todos os objetos que criamos com 'new'
+    for (size_t i = 0; i < pacotes.tamanho(); ++i) {
+        delete pacotes[i];
+    }
+    for (size_t i = 0; i < armazens.tamanho(); ++i) {
+        delete armazens[i];
+    }
+    for (size_t i = 0; i < transportes.tamanho(); ++i) {
+        delete transportes[i];
     }
 }
 
@@ -13,10 +26,16 @@ void Escalonador::carregarConfiguracao(int interv_transp, int custo_rem, int num
     this->custo_remocao = custo_rem;
 
     for (int i = 0; i < num_armazens; ++i) {
-        Armazem a;
-        a.setId(i);
+        // 1. Criar objeto no HEAP com 'new'
+        Armazem* a = new Armazem();
+        a->setId(i);
+
+        // 2. Adicionar o ponteiro ao vetor
         armazens.adicionar(a);
         rede_armazens.adicionarVertice(i);
+        
+        // 3. Adicionar o mesmo ponteiro ao mapa
+        mapa_armazens.inserir(i, a);
     }
 }
 
@@ -28,11 +47,26 @@ void Escalonador::adicionarConexao(int u, int v) {
 }
 
 void Escalonador::adicionarPacote(const Pacote& p) {
-    pacotes.adicionar(p);
+    // 1. Criar uma cópia no HEAP com 'new'
+    Pacote* novo_pacote = new Pacote(p);
+
+    // 2. Adicionar o ponteiro ao vetor
+    pacotes.adicionar(novo_pacote);
+
+    // 3. Adicionar o mesmo ponteiro ao mapa
+    mapa_pacotes.inserir(novo_pacote->getId(), novo_pacote);
 }
 
 void Escalonador::adicionarTransporte(const Transporte& t) {
-    transportes.adicionar(t);
+    // 1. Criar uma cópia no HEAP com 'new'
+    Transporte* novo_transporte = new Transporte(t);
+    
+    // 2. Adicionar o ponteiro ao vetor
+    transportes.adicionar(novo_transporte);
+
+    // 3. Adicionar o mesmo ponteiro ao mapa
+    long long chave_rota = (long long)novo_transporte->getOrigemId() * 10000 + novo_transporte->getDestinoId();
+    mapa_transportes.inserir(chave_rota, novo_transporte);
 }
 
 void Escalonador::prepararSimulacao() {
@@ -42,22 +76,22 @@ void Escalonador::prepararSimulacao() {
     if (total_pacotes_na_simulacao == 0) return; 
 
     // Encontrar o tempo do primeiro evento da simulação (a postagem mais cedo)
-    int tempo_inicio_simulacao = pacotes[0].getTempoPostagem();
+    int tempo_inicio_simulacao = pacotes[0]->getTempoPostagem();
     for (size_t i = 1; i < pacotes.tamanho(); ++i) {
-        if (pacotes[i].getTempoPostagem() < tempo_inicio_simulacao) {
-            tempo_inicio_simulacao = pacotes[i].getTempoPostagem();
+        if (pacotes[i]->getTempoPostagem() < tempo_inicio_simulacao) {
+            tempo_inicio_simulacao = pacotes[i]->getTempoPostagem();
         }
     }
 
     for (size_t i = 0; i < pacotes.tamanho(); ++i) {
-        calcularRotaParaPacote(pacotes[i]);
-        fila_eventos.inserir(new EventoChegadaPacote(pacotes[i].getTempoPostagem(), pacotes[i].getId()));
+        calcularRotaParaPacote(*pacotes[i]);
+        fila_eventos.inserir(new EventoChegadaPacote(pacotes[i]->getTempoPostagem(), pacotes[i]->getId()));
     }
 
     // Agenda o primeiro transporte para cada rota definida
     for (size_t i = 0; i < transportes.tamanho(); ++i) {
-        int origem = transportes[i].getOrigemId();
-        int destino = transportes[i].getDestinoId();
+        int origem = transportes[i]->getOrigemId();
+        int destino = transportes[i]->getDestinoId();
         
         // O primeiro transporte acontece 'intervalo' após o início da atividade
         int tempo_primeiro_transporte = tempo_inicio_simulacao + intervalo_transportes;
@@ -100,7 +134,7 @@ void Escalonador::processarEventoChegada(EventoChegadaPacote* evento) {
 
         int tempo_total = evento->tempo - pacote->getTempoPostagem();
         pacote->addTempoTotal(tempo_total);
-        
+
         imprimirEvento(evento->tempo, pacote->getId(), "entregue em " + formatarNumero(armazem_atual_id, 3));
     } else {
         armazem_atual_id = pacote->getArmazemAtual(); // A rota já avançou
@@ -195,26 +229,20 @@ void Escalonador::imprimirEvento(int tempo, int id_pacote, const std::string& ms
 }
 
 Pacote* Escalonador::getPacotePorId(int id) {
-    for (size_t i = 0; i < pacotes.tamanho(); ++i) {
-        if (pacotes[i].getId() == id) return &pacotes[i];
-    }
-    return nullptr;
+    // buscar() retorna V**, que é Pacote**. O primeiro * desreferencia para Pacote*
+    Pacote** resultado_ptr = mapa_pacotes.buscar(id);
+    return (resultado_ptr == nullptr) ? nullptr : *resultado_ptr;
 }
 
 Armazem* Escalonador::getArmazemPorId(int id) {
-    if (id >= 0 && (size_t)id < armazens.tamanho()) {
-        return &armazens[(size_t)id];
-    }
-    return nullptr;
+    Armazem** resultado_ptr = mapa_armazens.buscar(id);
+    return (resultado_ptr == nullptr) ? nullptr : *resultado_ptr;
 }
 
 Transporte* Escalonador::getTransportePorRota(int id_origem, int id_destino) {
-    for (size_t i = 0; i < transportes.tamanho(); ++i) {
-        if (transportes[i].getOrigemId() == id_origem && transportes[i].getDestinoId() == id_destino) {
-            return &transportes[i];
-        }
-    }
-    return nullptr; // Rota não encontrada
+    long long chave_rota = (long long)id_origem * 10000 + id_destino;
+    Transporte** resultado_ptr = mapa_transportes.buscar(chave_rota);
+    return (resultado_ptr == nullptr) ? nullptr : *resultado_ptr;
 }
 
 void Escalonador::calcularRotaParaPacote(Pacote& pacote) {
@@ -250,6 +278,7 @@ void Escalonador::calcularRotaParaPacote(Pacote& pacote) {
                 pred[v] = u;
                 fila_bfs.adicionar(v);
             }
+            
         }
     }
 

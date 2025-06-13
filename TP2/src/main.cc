@@ -7,7 +7,6 @@
 #include "transporte.h"
 #include "armazem.h"
 
-
 int main(int argc, char* argv[]) {
     if (argc != 2) {
         std::cerr << "Uso: ./bin/tp2.out <arquivo_de_entrada>" << std::endl;
@@ -23,26 +22,31 @@ int main(int argc, char* argv[]) {
     int capacidade, latencia, intervalo, custo_remocao;
     arquivo_entrada >> capacidade >> latencia >> intervalo >> custo_remocao;
 
+    if (!arquivo_entrada) {
+        std::cerr << "Erro: Arquivo de entrada com formato inválido ou faltando parâmetros iniciais." << std::endl;
+        return 1;
+    }
+
     int numero_armazens;
     arquivo_entrada >> numero_armazens;
-
+    
     Escalonador escalonador;
-    // Configuração com parâmetros globais
     escalonador.carregarConfiguracao(intervalo, custo_remocao, numero_armazens);
 
-    // Ler a matriz, adicionar conexões no grafo E criar os objetos Transporte
     for (int i = 0; i < numero_armazens; ++i) {
         for (int j = 0; j < numero_armazens; ++j) {
             int conexao;
             arquivo_entrada >> conexao;
             
+            if (!arquivo_entrada) {
+                std::cerr << "Erro: Arquivo de entrada incompleto ou mal formatado na matriz de adjacência." << std::endl;
+                return 1;
+            }
+            
             if (conexao == 1) {
-                // Adiciona a conexão para o cálculo de rotas (BFS)
-                // Adiciona só uma vez (i < j) para evitar duplicar arestas no grafo
                 if (i < j) {
                     escalonador.adicionarConexao(i, j);
                 }
-                // Cria e adiciona o objeto Transporte para a rota i -> j
                 Transporte novo_transporte(i, j, capacidade, latencia);
                 escalonador.adicionarTransporte(novo_transporte);
             }
@@ -56,6 +60,11 @@ int main(int argc, char* argv[]) {
         int tempo_postagem, id_original, origem, destino;
         std::string str_pac, str_org, str_dst;
         arquivo_entrada >> tempo_postagem >> str_pac >> id_original >> str_org >> origem >> str_dst >> destino;
+
+        if (!arquivo_entrada) {
+            std::cerr << "Erro: Arquivo de entrada nao contem a quantidade de pacotes declarada." << std::endl;
+            return 1;
+        }
 
         Pacote novo_pacote(i, tempo_postagem, origem, destino, custo_remocao);
         escalonador.adicionarPacote(novo_pacote);

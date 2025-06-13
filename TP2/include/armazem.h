@@ -3,7 +3,7 @@
 
 #include <string>    // Para std::string
 #include <stdexcept>  // Para std::runtime_error e std::out_of_range
-#include <algorithm> // Para std::find (opcional, mas bom ter)
+#include <algorithm> 
 #include <iostream>  // Para std::cerr
 
 #include "estruturas_auxiliares.h" 
