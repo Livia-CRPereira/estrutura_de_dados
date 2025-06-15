@@ -1,0 +1,203 @@
+100 1
+25 100
+0 3 5 33
+3 0 5 10
+0 23 5 50
+23 0 5 28
+1 9 5 50
+9 1 5 43
+1 19 5 27
+19 1 5 47
+1 3 5 50
+3 1 5 34
+1 2 5 39
+2 1 5 14
+1 16 5 22
+16 1 5 10
+1 11 5 10
+11 1 5 47
+1 4 5 22
+4 1 5 38
+2 23 5 21
+23 2 5 49
+2 3 5 19
+3 2 5 15
+3 17 5 15
+17 3 5 48
+3 12 5 16
+12 3 5 26
+3 7 5 24
+7 3 5 31
+4 20 5 45
+20 4 5 15
+4 22 5 29
+22 4 5 45
+5 6 5 35
+6 5 5 30
+5 10 5 34
+10 5 5 47
+5 20 5 50
+20 5 5 42
+5 13 5 10
+13 5 5 45
+6 9 5 46
+9 6 5 30
+6 8 5 46
+8 6 5 18
+6 19 5 20
+19 6 5 26
+6 20 5 10
+20 6 5 19
+6 23 5 50
+23 6 5 34
+7 13 5 36
+13 7 5 20
+7 20 5 19
+20 7 5 21
+7 17 5 32
+17 7 5 27
+8 12 5 24
+12 8 5 27
+8 13 5 29
+13 8 5 44
+8 10 5 14
+10 8 5 42
+9 21 5 32
+21 9 5 15
+9 17 5 36
+17 9 5 47
+9 22 5 26
+22 9 5 44
+12 17 5 23
+17 12 5 27
+12 24 5 23
+24 12 5 31
+12 14 5 13
+14 12 5 25
+12 21 5 41
+21 12 5 17
+13 16 5 17
+16 13 5 27
+13 18 5 47
+18 13 5 10
+13 23 5 20
+23 13 5 49
+14 15 5 32
+15 14 5 50
+14 22 5 35
+22 14 5 40
+15 24 5 21
+24 15 5 13
+15 19 5 10
+19 15 5 41
+16 18 5 17
+18 16 5 47
+16 24 5 37
+24 16 5 15
+17 24 5 35
+24 17 5 28
+21 24 5 31
+24 21 5 44
+21 22 5 40
+22 21 5 37
+100
+164 pac 1 org 17 dst 5
+481 pac 2 org 13 dst 7
+157 pac 3 org 18 dst 15
+163 pac 4 org 13 dst 5
+31 pac 5 org 7 dst 15
+87 pac 6 org 5 dst 2
+223 pac 7 org 0 dst 2
+263 pac 8 org 18 dst 14
+74 pac 9 org 12 dst 21
+295 pac 10 org 19 dst 22
+396 pac 11 org 8 dst 19
+490 pac 12 org 1 dst 22
+130 pac 13 org 1 dst 13
+214 pac 14 org 11 dst 22
+141 pac 15 org 16 dst 2
+302 pac 16 org 20 dst 0
+343 pac 17 org 15 dst 21
+394 pac 18 org 24 dst 9
+327 pac 19 org 6 dst 17
+338 pac 20 org 12 dst 22
+145 pac 21 org 11 dst 12
+448 pac 22 org 1 dst 21
+150 pac 23 org 6 dst 18
+307 pac 24 org 21 dst 12
+420 pac 25 org 16 dst 0
+135 pac 26 org 12 dst 3
+172 pac 27 org 14 dst 16
+316 pac 28 org 18 dst 5
+226 pac 29 org 18 dst 16
+306 pac 30 org 7 dst 8
+350 pac 31 org 12 dst 0
+37 pac 32 org 15 dst 7
+154 pac 33 org 13 dst 1
+175 pac 34 org 1 dst 7
+201 pac 35 org 16 dst 22
+480 pac 36 org 3 dst 9
+180 pac 37 org 18 dst 3
+479 pac 38 org 8 dst 19
+493 pac 39 org 18 dst 15
+132 pac 40 org 5 dst 6
+327 pac 41 org 2 dst 16
+460 pac 42 org 5 dst 7
+484 pac 43 org 3 dst 8
+72 pac 44 org 13 dst 7
+205 pac 45 org 17 dst 14
+19 pac 46 org 9 dst 17
+456 pac 47 org 6 dst 3
+146 pac 48 org 12 dst 5
+430 pac 49 org 16 dst 9
+337 pac 50 org 20 dst 2
+473 pac 51 org 14 dst 12
+137 pac 52 org 20 dst 21
+390 pac 53 org 14 dst 4
+226 pac 54 org 8 dst 21
+144 pac 55 org 18 dst 14
+428 pac 56 org 24 dst 14
+60 pac 57 org 19 dst 21
+223 pac 58 org 0 dst 15
+193 pac 59 org 9 dst 24
+399 pac 60 org 16 dst 19
+132 pac 61 org 3 dst 15
+141 pac 62 org 20 dst 3
+264 pac 63 org 19 dst 16
+404 pac 64 org 18 dst 1
+291 pac 65 org 16 dst 24
+39 pac 66 org 20 dst 5
+97 pac 67 org 23 dst 13
+67 pac 68 org 18 dst 14
+350 pac 69 org 19 dst 24
+10 pac 70 org 12 dst 1
+114 pac 71 org 2 dst 3
+477 pac 72 org 17 dst 21
+212 pac 73 org 4 dst 20
+437 pac 74 org 7 dst 19
+122 pac 75 org 23 dst 21
+182 pac 76 org 5 dst 11
+459 pac 77 org 24 dst 12
+383 pac 78 org 23 dst 5
+300 pac 79 org 6 dst 16
+161 pac 80 org 10 dst 15
+404 pac 81 org 4 dst 20
+165 pac 82 org 20 dst 14
+415 pac 83 org 5 dst 23
+51 pac 84 org 7 dst 18
+387 pac 85 org 12 dst 22
+437 pac 86 org 5 dst 1
+451 pac 87 org 3 dst 19
+169 pac 88 org 21 dst 17
+145 pac 89 org 22 dst 4
+426 pac 90 org 7 dst 14
+389 pac 91 org 9 dst 12
+78 pac 92 org 22 dst 15
+77 pac 93 org 17 dst 16
+206 pac 94 org 15 dst 17
+448 pac 95 org 16 dst 20
+211 pac 96 org 21 dst 24
+222 pac 97 org 21 dst 4
+149 pac 98 org 20 dst 24
+387 pac 99 org 18 dst 7
+337 pac 100 org 23 dst 19
