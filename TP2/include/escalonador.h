@@ -10,62 +10,50 @@
 #include "pacote.h"
 #include "armazem.h"
 #include "transporte.h"
-#include "ordenacao.h" 
 #include "hashmap.h"
 
-// --- Estruturas de Evento ---
+// --- Estrutura de Evento ---
+
+enum TipoId { PACOTE, TRANSPORTE };
+enum TipoEvento { CHEGADA_PACOTE, SAIDA_TRANSPORTE };
 
 /**
- * @brief Enumera os tipos de eventos que podem ocorrer na simulação.
- */
-enum TipoEvento {
-    EVENTO_CHEGADA_PACOTE, // Um evento relacionado à chegada de um pacote a um armazém ou destino.
-    EVENTO_TRANSPORTE      // Um evento que dispara o processo de transporte em uma rota específica.
-};
-
-/**
- * @brief Estrutura base para todos os eventos na simulação.
- * @details Contém dados essenciais para qualquer evento: o tempo em que ocorre,
- * seu tipo, e uma chave única para ordenação precisa na fila de prioridades.
- */
+ * @brief Representa uma ação pontual e agendada que move a simulação para frente.
+ * @details O Evento é a unidade fundamental na Simulação de Eventos Discretos (SED).
+ * Cada objeto Evento encapsula tudo que é necessário para descrever uma ação futura:
+ * o que vai acontecer, quando, e quais entidades estão envolvidas. Eles são inseridos
+ * em uma fila de prioridades (min-heap) para serem processados em ordem cronológica.
+ *
+ * A lógica de priorização é controlada pela 'chave' (long long), que é construída
+ * de forma a resolver empates de tempo de maneira determinística e correta.
+*/
 struct Evento {
-    long long chave;   // Chave numérica para ordenação inequívoca na fila de prioridades.
-    int tempo;         // O instante de tempo da simulação em que o evento deve ocorrer.
-    TipoEvento tipo;   // O tipo do evento, para sabermos como processá-lo.
-    virtual ~Evento() {}
-};
+    long long chave;
+    int tempo;
+    int id;
+    int origem;
+    int destino;
+    TipoId tipo_id;
+    TipoEvento tipo_evento;
 
-/**
- * @brief Evento que representa a chegada de um pacote a um armazém.
- * @details Deriva de Evento e adiciona o ID do pacote envolvido.
- */
-struct EventoChegadaPacote : public Evento {
-    int id_pacote; // O ID do pacote que está chegando.
+    // Construtor padrão
+    Evento() : chave(0), tempo(0), id(-1), origem(-1), destino(-1), tipo_id(PACOTE), tipo_evento(CHEGADA_PACOTE) {}
 
-    EventoChegadaPacote(int t, int id) : id_pacote(id) {
-        this->tempo = t;
-        this->tipo = EVENTO_CHEGADA_PACOTE;
-        // A chave prioriza o tempo, depois o ID do pacote e por último o tipo de evento.
-        this->chave = (long long)this->tempo * 10000000LL + 
-                      (long long)this->id_pacote * 10LL + 1;
+    Evento(int t, int obj_id, int org, int dest, TipoId t_id, TipoEvento t_evento)
+        : tempo(t), id(obj_id), origem(org), destino(dest), tipo_id(t_id), tipo_evento(t_evento)
+    {
+        if (tipo_id == PACOTE) {
+            // Chave para evento de PACOTE (chegada)
+            chave = (long long)tempo * 10000000LL + (long long)id * 10LL + 1LL;
+        } else { // tipo_id == TRANSPORTE
+            // Chave para evento de TRANSPORTE (saída)
+            chave = (long long)tempo * 10000000LL + (long long)origem * 10000LL + (long long)destino * 10LL + 2LL;
+        }
     }
-};
 
-/**
- * @brief Evento que representa a partida de um transporte de uma origem para um destino.
- * @details Deriva de Evento e adiciona os IDs da rota de transporte.
- */
-struct EventoTransporte : public Evento {
-    int id_origem;  // O ID do armazém de origem da rota.
-    int id_destino; // O ID do armazém de destino da rota.
-
-    EventoTransporte(int t, int origem, int destino) : id_origem(origem), id_destino(destino) {
-        this->tempo = t;
-        this->tipo = EVENTO_TRANSPORTE;
-        // A chave prioriza o tempo, depois a rota e por último o tipo de evento.
-        this->chave = (long long)this->tempo * 10000000LL + 
-                      (long long)this->id_origem * 10000LL + 
-                      (long long)this->id_destino * 10LL + 2;
+    // Sobrecarga do operador '<' para o MinHeap saber como comparar
+    bool operator<(const Evento& outro) const {
+        return this->chave < outro.chave;
     }
 };
 
@@ -98,142 +86,142 @@ struct ComparadorEventos {
  * caminhão), que são inseridos na fila para manter a simulação viva.
  */
 class Escalonador {
-public:
-    /**
-     * @brief Construtor do Escalonador, inicializa o estado do sistema.
-     */
-    Escalonador();
-
-    /**
-     * @brief Destrutor do Escalonador.
-     * @details Libera a memória de todos os eventos que ainda possam estar na fila.
-     */
-    ~Escalonador();
-
-    /**
-     * @brief Carrega os parâmetros globais da simulação.
-     * @param interv_transp Intervalo de tempo entre despachos de veículos na mesma rota.
-     * @param custo_rem Custo de tempo para remover um único pacote de uma pilha.
-     * @param num_armazens O número total de armazéns na simulação.
-     */
-    void carregarConfiguracao(int interv_transp, int custo_rem, int num_armazens);
+    public:
+        /**
+         * @brief Construtor do Escalonador, inicializa o estado do sistema.
+         */
+        Escalonador();
     
-    /**
-     * @brief Adiciona uma conexão (aresta) não-direcionada ao grafo da rede.
-     * @param u O ID do primeiro armazém.
-     * @param v O ID do segundo armazém.
-     */
-    void adicionarConexao(int u, int v);
+        /**
+         * @brief Destrutor do Escalonador.
+         * @details Libera a memória de todos os eventos que ainda possam estar na fila.
+         */
+        ~Escalonador();
     
-    /**
-     * @brief Adiciona um pacote à lista de pacotes a serem simulados.
-     * @param p O objeto Pacote a ser adicionado.
-     */
-    void adicionarPacote(const Pacote& p);
-
-    /**
-     * @brief Adiciona uma rota de transporte ao sistema.
-     * @param t O objeto Transporte que define a rota e suas propriedades.
-     */
-    void adicionarTransporte(const Transporte& t);
-
-    /**
-     * @brief Prepara a simulação para execução.
-     * @details Calcula a rota para cada pacote via BFS e insere os eventos iniciais
-     * (postagem de pacotes e os primeiros transportes) na fila de prioridades.
-     */
-    void prepararSimulacao();
+        /**
+         * @brief Carrega os parâmetros globais da simulação.
+         * @param interv_transp Intervalo de tempo entre despachos de veículos na mesma rota.
+         * @param custo_rem Custo de tempo para remover um único pacote de uma pilha.
+         * @param num_armazens O número total de armazéns na simulação.
+         */
+        void carregarConfiguracao(int interv_transp, int custo_rem, int num_armazens);
+        
+        /**
+         * @brief Adiciona uma conexão (aresta) não-direcionada ao grafo da rede.
+         * @param u O ID do primeiro armazém.
+         * @param v O ID do segundo armazém.
+         */
+        void adicionarConexao(int u, int v);
+        
+        /**
+         * @brief Adiciona um pacote à lista de pacotes a serem simulados.
+         * @param p O objeto Pacote a ser adicionado.
+         */
+        void adicionarPacote(const Pacote& p);
     
-    /**
-     * @brief Executa o loop principal da simulação.
-     * @details Retira um evento da fila de cada vez, avança o tempo e o processa,
-     * até que todos os pacotes sejam entregues.
-     */
-    void executar();
-
-    /**
-     * @brief Retorna um ponteiro para um objeto Pacote com base em seu ID.
-     * @param id O ID do pacote a ser encontrado.
-     * @return Ponteiro para o Pacote, ou nullptr se não for encontrado.
-     */
-    Pacote* getPacotePorId(int id);
-
-private:
-    // --- Variáveis de Estado ---
-    int tempo_sistema;              // O tempo atual do sistema na simulação.
-    int pacotes_entregues;          // Contador para o critério de parada da simulação.
-    int total_pacotes_na_simulacao; // Número total de pacotes a serem entregues.
-
-    // --- Parâmetros Globais ---
-    int intervalo_transportes; // Intervalo de tempo entre a saída de dois transportes na mesma rota.
-    int custo_remocao;         // Custo de tempo para remover um pacote de uma pilha no armazém.
-
-    // --- Estruturas de Dados Principais ---
-    Grafo<int, int> rede_armazens;             // Grafo que representa a rede de armazéns e suas conexões.
-    Vetor<Armazem*> armazens;                   // Vetor que armazena todos os ponteiros para Armazem.
-    Vetor<Pacote*> pacotes;                     // Vetor que armazena todos os ponteiros para Pacote da simulação.
-    Vetor<Transporte*> transportes;             // Vetor que armazena todos os ponteiros para Transporte (rotas).
-    minHeap<Evento*, ComparadorEventos> fila_eventos; // Fila de prioridade (min-heap) que gerencia todos os eventos futuros.
-
-    // --- Mapas para acesso rápido ---
-    HashMap<int, Pacote*> mapa_pacotes;
-    HashMap<int, Armazem*> mapa_armazens;
-    HashMap<long long, Transporte*> mapa_transportes;
-
-    // --- Métodos de Processamento de Eventos ---
-    /**
-     * @brief Processa um único evento de chegada de pacote.
-     * @details Verifica se é o destino final ou um armazém intermediário e
-     * armazena o pacote ou finaliza sua jornada.
-     * @param evento O ponteiro para o evento de chegada do pacote.
-     */
-    void processarEventoChegada(EventoChegadaPacote* evento);
-
-    /**
-     * @brief Processa um único evento de transporte.
-     * @details Simula a remoção LIFO de pacotes, prioriza o embarque, despacha
-     * os pacotes e re-agenda o próximo transporte para a rota.
-     * @param evento O ponteiro para o evento de transporte.
-     */
-    void processarEventoTransporte(EventoTransporte* evento);
-
-    // --- Funções Auxiliares ---
-    /**
-     * @brief Calcula a rota mais curta para um pacote usando BFS (Busca em Largura).
-     * @param pacote O pacote para o qual a rota será calculada e definida.
-     */
-    void calcularRotaParaPacote(Pacote& pacote);
-
-    /**
-     * @brief Imprime uma mensagem de evento formatada no console.
-     * @param tempo O tempo do sistema em que o evento ocorreu.
-     * @param id_pacote O ID do pacote relacionado ao evento.
-     * @param msg A mensagem descritiva do evento.
-     */
-    void imprimirEvento(int tempo, int id_pacote, const std::string& msg);
-
-    /**
-     * @brief Formata um número com zeros à esquerda para exibição.
-     * @param numero O número a ser formatado.
-     * @param largura A largura total do campo.
-     * @return Uma string com o número formatado.
-     */
-    std::string formatarNumero(int numero, int largura);
+        /**
+         * @brief Adiciona uma rota de transporte ao sistema.
+         * @param t O objeto Transporte que define a rota e suas propriedades.
+         */
+        void adicionarTransporte(const Transporte& t);
     
-    /**
-     * @brief Retorna um ponteiro para um objeto Armazem com base em seu ID.
-     * @param id O ID do armazém a ser encontrado.
-     * @return Ponteiro para o Armazem, ou nullptr se não for encontrado.
-     */
-    Armazem* getArmazemPorId(int id);
-
-    /**
-     * @brief Retorna um ponteiro para um objeto Transporte com base nos IDs da rota.
-     * @param id_origem O ID do armazém de origem.
-     * @param id_destino O ID do armazém de destino.
-     * @return Ponteiro para o Transporte, ou nullptr se não for encontrado.
-     */
-    Transporte* getTransportePorRota(int id_origem, int id_destino);
+        /**
+         * @brief Prepara a simulação para execução.
+         * @details Calcula a rota para cada pacote via BFS e insere os eventos iniciais
+         * (postagem de pacotes e os primeiros transportes) na fila de prioridades.
+         */
+        void prepararSimulacao();
+        
+        /**
+         * @brief Executa o loop principal da simulação.
+         * @details Retira um evento da fila de cada vez, avança o tempo e o processa,
+         * até que todos os pacotes sejam entregues.
+         */
+        void executar();
+    
+    private:
+        // --- Variáveis de Estado ---
+        int tempo_sistema;              // O tempo atual do sistema na simulação.
+        int pacotes_entregues;          // Contador para o critério de parada da simulação.
+        int total_pacotes_na_simulacao; // Número total de pacotes a serem entregues.
+    
+        // --- Parâmetros Globais ---
+        int intervalo_transportes; // Intervalo de tempo entre a saída de dois transportes na mesma rota.
+        int custo_remocao;         // Custo de tempo para remover um pacote de uma pilha no armazém.
+    
+        // --- Estruturas de Dados Principais ---
+        Grafo<int, int> rede_armazens;             // Grafo que representa a rede de armazéns e suas conexões.
+        Vetor<Armazem*> armazens;                   // Vetor que armazena todos os ponteiros para Armazem.
+        Vetor<Pacote*> pacotes;                     // Vetor que armazena todos os ponteiros para Pacote da simulação.
+        Vetor<Transporte*> transportes;             // Vetor que armazena todos os ponteiros para Transporte (rotas).
+        minHeap<Evento*, ComparadorEventos> fila_eventos; // Fila de prioridade (min-heap) que gerencia todos os eventos futuros.
+    
+        // --- Mapas para acesso rápido ---
+        HashMap<int, Pacote*> mapa_pacotes;
+        HashMap<int, Armazem*> mapa_armazens;
+        HashMap<long long, Transporte*> mapa_transportes;
+    
+        // --- Métodos de Processamento de Eventos ---
+        /**
+         * @brief Processa um único evento de chegada de pacote.
+         * @details Verifica se é o destino final ou um armazém intermediário e
+         * armazena o pacote ou finaliza sua jornada.
+         * @param evento O ponteiro para o evento de chegada do pacote.
+         */
+        void processarEventoChegada(Evento* evento);
+    
+        /**
+         * @brief Processa um único evento de transporte.
+         * @details Simula a remoção LIFO de pacotes, prioriza o embarque, despacha
+         * os pacotes e re-agenda o próximo transporte para a rota.
+         * @param evento O ponteiro para o evento de transporte.
+         */
+        void processarEventoTransporte(Evento* evento);
+    
+        // --- Funções Auxiliares ---
+        /**
+         * @brief Calcula a rota mais curta para um pacote usando BFS (Busca em Largura).
+         * @param pacote O pacote para o qual a rota será calculada e definida.
+         */
+        void calcularRotaParaPacote(Pacote& pacote);
+    
+        /**
+         * @brief Imprime uma mensagem de evento formatada no console.
+         * @param tempo O tempo do sistema em que o evento ocorreu.
+         * @param id_pacote O ID do pacote relacionado ao evento.
+         * @param msg A mensagem descritiva do evento.
+         */
+        void imprimirEvento(int tempo, int id_pacote, const std::string& msg);
+    
+        /**
+         * @brief Formata um número com zeros à esquerda para exibição.
+         * @param numero O número a ser formatado.
+         * @param largura A largura total do campo.
+         * @return Uma string com o número formatado.
+         */
+        std::string formatarNumero(int numero, int largura);
+    
+        /**
+         * @brief Retorna um ponteiro para um objeto Pacote com base em seu ID.
+         * @param id O ID do pacote a ser encontrado.
+         * @return Ponteiro para o Pacote, ou nullptr se não for encontrado.
+         */
+        Pacote* getPacotePorId(int id);
+        
+        /**
+         * @brief Retorna um ponteiro para um objeto Armazem com base em seu ID.
+         * @param id O ID do armazém a ser encontrado.
+         * @return Ponteiro para o Armazem, ou nullptr se não for encontrado.
+         */
+        Armazem* getArmazemPorId(int id);
+    
+        /**
+         * @brief Retorna um ponteiro para um objeto Transporte com base nos IDs da rota.
+         * @param id_origem O ID do armazém de origem.
+         * @param id_destino O ID do armazém de destino.
+         * @return Ponteiro para o Transporte, ou nullptr se não for encontrado.
+         */
+        Transporte* getTransportePorRota(int id_origem, int id_destino);
 };
 
 #endif // ESCALONADOR_H

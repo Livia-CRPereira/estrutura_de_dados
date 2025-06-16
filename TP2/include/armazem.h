@@ -3,7 +3,6 @@
 
 #include <string>    // Para std::string
 #include <stdexcept>  // Para std::runtime_error e std::out_of_range
-#include <algorithm> 
 #include <iostream>  // Para std::cerr
 
 #include "estruturas_auxiliares.h" 
@@ -34,7 +33,7 @@ class Armazem {
 
             for (int i = 0; i < num_vizinhos; ++i) {
                 id_dos_vizinhos.adicionar(armazens_vizinhos[i]);
-                secoes.adicionar(Pilha<Pacote>());
+                secoes.adicionar(Pilha<Pacote*>());
             }
         }
 
@@ -61,11 +60,11 @@ class Armazem {
          * @param pacote O pacote a ser armazenado.
          * @param id_destino O ID do próximo armazém na rota do pacote.
          */
-        void armazenaPacote(Pacote& pacote, int id_destino) {
+        void armazenaPacote(Pacote* pacote, int id_destino) { // Recebe ponteiro
             try {
                 int secao_idx = getSecaoIndex(id_destino);
-                secoes[static_cast<size_t>(secao_idx)].empilhar(pacote);
-                pacote.setEstado(ARMAZENADO_EM_ARMAZEM);
+                secoes[secao_idx].empilhar(pacote); // Empilha o ponteiro
+                pacote->setEstado(ARMAZENADO_EM_ARMAZEM);
             } catch (const std::runtime_error& e) {
                 std::cerr << "Erro ao armazenar pacote no armazém " << id << ": " << e.what() << std::endl;
             }
@@ -77,14 +76,14 @@ class Armazem {
          * @return O pacote removido do topo da pilha.
          * @throws std::runtime_error se a seção estiver vazia.
          */
-        Pacote recuperaPacoteDaSecao(int proximo_armazem_destino_id) {
+        Pacote* recuperaPacoteDaSecao(int proximo_armazem_destino_id) {
             try {
                 int secao_idx = getSecaoIndex(proximo_armazem_destino_id);
                 if (secoes[secao_idx].vazia()) {
                     throw std::runtime_error("Seção vazia, impossível recuperar pacote.");
                 }
-                Pacote pacote_removido = secoes[secao_idx].desempilhar();
-                pacote_removido.setEstado(ALOCADO_PARA_TRANSPORTE);
+                Pacote* pacote_removido = secoes[secao_idx].desempilhar(); // Desempilha ponteiro
+                pacote_removido->setEstado(ALOCADO_PARA_TRANSPORTE);
                 return pacote_removido;
             } catch (const std::runtime_error& e) {
                 std::cerr << "Erro ao recuperar pacote do armazém " << id << ": " << e.what() << std::endl;
@@ -103,7 +102,7 @@ class Armazem {
                 }
             }
             id_dos_vizinhos.adicionar(id_vizinho);
-            secoes.adicionar(Pilha<Pacote>());
+            secoes.adicionar(Pilha<Pacote*>());
         }
 
         /**
@@ -152,38 +151,9 @@ class Armazem {
          * @param proximo_armazem_destino_id ID que define a seção.
          * @return Uma referência para a pilha de pacotes da seção.
          */
-        Pilha<Pacote>& getSecaoRef(int proximo_armazem_destino_id) {
+        Pilha<Pacote*>& getSecaoRef(int proximo_armazem_destino_id) { // Retorna referência para Pilha de ponteiros
             int secao_idx = getSecaoIndex(proximo_armazem_destino_id);
             return secoes[secao_idx];
-        }
-
-        /**
-         * @brief Remove um lote de pacotes de uma seção para transporte.
-         * @param proximo_armazem_destino_id ID que define a seção de origem.
-         * @param capacidade O número máximo de pacotes a remover.
-         * @param tempo_atual_simulacao O tempo atual da simulação.
-         * @param custo_remocao_base O custo de tempo a ser adicionado a cada pacote removido.
-         * @return Um Vetor contendo os pacotes removidos.
-         */
-        Vetor<Pacote> removerPacotesParaTransporte(int proximo_armazem_destino_id, int capacidade, int tempo_atual_simulacao, int custo_remocao_base) {
-            Vetor<Pacote> pacotes_para_transporte;
-            try {
-                int secao_idx = getSecaoIndex(proximo_armazem_destino_id);
-                Pilha<Pacote>& secao = secoes[secao_idx];
-
-                int pacotes_removidos_count = 0;
-                while (!secao.vazia() && pacotes_removidos_count < capacidade) {
-                    Pacote pacote_removido = secao.desempilhar();
-                    pacote_removido.addTempoEspera(custo_remocao_base);
-                    pacote_removido.addTempoTotal(custo_remocao_base);
-                    pacotes_para_transporte.adicionar(pacote_removido);
-                    pacotes_removidos_count++;
-                }
-            } catch (const std::runtime_error& e) {
-                std::cerr << "Erro em Armazem::removerPacotesParaTransporte: " << e.what() << std::endl;
-                throw;
-            }
-            return pacotes_para_transporte;
         }
 
         /**
@@ -204,7 +174,7 @@ class Armazem {
     private:
         int id; // ID único do armazém.
         Vetor<int> id_dos_vizinhos; // Vetor que armazena os IDs dos armazéns vizinhos. A ordem é importante.
-        Vetor<Pilha<Pacote>> secoes; // Vetor de seções, onde cada seção é uma pilha. A ordem corresponde a `id_dos_vizinhos`
+        Vetor<Pilha<Pacote*>> secoes; // Vetor de seções, onde cada seção é uma pilha. A ordem corresponde a `id_dos_vizinhos`
 };
 
 #endif // ARMAZEM_H

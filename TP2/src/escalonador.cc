@@ -73,7 +73,7 @@ void Escalonador::prepararSimulacao() {
     this->total_pacotes_na_simulacao = pacotes.tamanho();
     this->pacotes_entregues = 0;
 
-    if (total_pacotes_na_simulacao == 0) return; 
+    if (total_pacotes_na_simulacao == 0) return;
 
     // Encontrar o tempo do primeiro evento da simulação (a postagem mais cedo)
     int tempo_inicio_simulacao = pacotes[0]->getTempoPostagem();
@@ -83,9 +83,12 @@ void Escalonador::prepararSimulacao() {
         }
     }
 
+    // Agenda a chegada inicial de cada pacote
     for (size_t i = 0; i < pacotes.tamanho(); ++i) {
         calcularRotaParaPacote(*pacotes[i]);
-        fila_eventos.inserir(new EventoChegadaPacote(pacotes[i]->getTempoPostagem(), pacotes[i]->getId()));
+        Pacote* p = pacotes[i];
+        
+        fila_eventos.inserir(new Evento(p->getTempoPostagem(), p->getId(), p->getArmazemOrigem(), p->getArmazemOrigem(), PACOTE, CHEGADA_PACOTE));
     }
 
     // Agenda o primeiro transporte para cada rota definida
@@ -93,10 +96,9 @@ void Escalonador::prepararSimulacao() {
         int origem = transportes[i]->getOrigemId();
         int destino = transportes[i]->getDestinoId();
         
-        // O primeiro transporte acontece 'intervalo' após o início da atividade
         int tempo_primeiro_transporte = tempo_inicio_simulacao + intervalo_transportes;
-        
-        fila_eventos.inserir(new EventoTransporte(tempo_primeiro_transporte, origem, destino));
+
+        fila_eventos.inserir(new Evento(tempo_primeiro_transporte, i, origem, destino, TRANSPORTE, SAIDA_TRANSPORTE));
     }
 }
 
@@ -107,19 +109,22 @@ void Escalonador::executar() {
         Evento* proximo_evento = fila_eventos.removerMinimo();
         this->tempo_sistema = proximo_evento->tempo;
 
-        if (proximo_evento->tipo == EVENTO_CHEGADA_PACOTE) {
-            processarEventoChegada(static_cast<EventoChegadaPacote*>(proximo_evento));
-        } else {
-            processarEventoTransporte(static_cast<EventoTransporte*>(proximo_evento));
+        if (proximo_evento->tipo_evento == CHEGADA_PACOTE) {
+            processarEventoChegada(proximo_evento);
+        } else { // O tipo só pode ser SAIDA_TRANSPORTE
+            processarEventoTransporte(proximo_evento);
         }
         delete proximo_evento;
     }
 }
 
-void Escalonador::processarEventoChegada(EventoChegadaPacote* evento) {
-    Pacote* pacote = getPacotePorId(evento->id_pacote);
+void Escalonador::processarEventoChegada(Evento* evento) {
+
+    Pacote* pacote = getPacotePorId(evento->id);
+    
     if (!pacote || pacote->getEstado() == ENTREGUE) return;
 
+    
     if (pacote->getEstado() != NAO_FOI_POSTADO) {
         pacote->avancarNaRota();
     }
@@ -137,81 +142,63 @@ void Escalonador::processarEventoChegada(EventoChegadaPacote* evento) {
 
         imprimirEvento(evento->tempo, pacote->getId(), "entregue em " + formatarNumero(armazem_atual_id, 3));
     } else {
-        armazem_atual_id = pacote->getArmazemAtual(); // A rota já avançou
         int proximo_armazem_id = pacote->getProximoArmazem();
-        getArmazemPorId(armazem_atual_id)->armazenaPacote(*pacote, proximo_armazem_id);
+        getArmazemPorId(armazem_atual_id)->armazenaPacote(pacote, proximo_armazem_id); 
         imprimirEvento(evento->tempo, pacote->getId(), "armazenado em " + formatarNumero(armazem_atual_id, 3) + " na secao " + formatarNumero(proximo_armazem_id, 3));
     }
 }
 
-void Escalonador::processarEventoTransporte(EventoTransporte* evento) {
-    int origem = evento->id_origem;
-    int destino = evento->id_destino;
 
-    fila_eventos.inserir(new EventoTransporte(evento->tempo + intervalo_transportes, origem, destino));
+void Escalonador::processarEventoTransporte(Evento* evento) {
+
+    int origem = evento->origem;
+    int destino = evento->destino;
+
+    
+    fila_eventos.inserir(new Evento(evento->tempo + intervalo_transportes, evento->id, origem, destino, TRANSPORTE, SAIDA_TRANSPORTE));
 
     Armazem* armazem_origem = getArmazemPorId(origem);
-    if (armazem_origem->isSecaoVazia(destino)) return;
-
-    // Busca o transporte específico para esta rota para pegar capacidade e latência
     Transporte* rota_transporte = getTransportePorRota(origem, destino);
-    if (!rota_transporte) return; // Rota não definida, não faz nada
 
-    Pilha<Pacote>& secao = armazem_origem->getSecaoRef(destino);
-    Vetor<Pacote> pacotes_removidos_lifo;
-    int tempo_operacao = evento->tempo;
-
-    while (!secao.vazia()) {
-        Pacote p = secao.desempilhar();
-        tempo_operacao += this->custo_remocao;
-
-        Pacote* p_original_ptr = getPacotePorId(p.getId());
-        int tempo_espera_desta_etapa = tempo_operacao - p_original_ptr->getTempoChegadaAtual();
-        p_original_ptr->addTempoEspera(tempo_espera_desta_etapa);
-
-        imprimirEvento(tempo_operacao, p.getId(), "removido de " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
-        pacotes_removidos_lifo.adicionar(p);
-    }
-    int tempo_final_op = tempo_operacao;
-
-    Vetor<Pacote*> pacotes_para_ordenar;
-    for (size_t i = 0; i < pacotes_removidos_lifo.tamanho(); ++i) {
-        pacotes_para_ordenar.adicionar(getPacotePorId(pacotes_removidos_lifo[i].getId()));
+    if (!rota_transporte || armazem_origem->isSecaoVazia(destino)) {
+        return;
     }
     
-    int evento_tempo = evento->tempo;
-    quickSort(pacotes_para_ordenar, [evento_tempo](const Pacote* a, const Pacote* b) {
-        int espera_a = evento_tempo - a->getTempoChegadaAtual();
-        int espera_b = evento_tempo - b->getTempoChegadaAtual();
-        if (espera_a != espera_b) return espera_a > espera_b;
-        return a->getTempoPostagem() < b->getTempoPostagem();
-    });
+    Pilha<Pacote*> pilha_auxiliar;
+    int tempo_operacao = evento->tempo;
 
-    Vetor<int> ids_para_transportar;
-    for (size_t i = 0; i < pacotes_para_ordenar.tamanho() && i < (size_t)rota_transporte->getCapacidadeMaxPacotes(); ++i) {
-        ids_para_transportar.adicionar(pacotes_para_ordenar[i]->getId());
+    Pilha<Pacote*>& secao = armazem_origem->getSecaoRef(destino);
+    while (!secao.vazia()) {
+        Pacote* p = secao.desempilhar();
+        tempo_operacao += this->custo_remocao;
+        
+        int tempo_espera_etapa = tempo_operacao - p->getTempoChegadaAtual();
+        p->addTempoEspera(tempo_espera_etapa);
+
+        imprimirEvento(tempo_operacao, p->getId(), "removido de " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
+        pilha_auxiliar.empilhar(p);
     }
+    int tempo_final_remocao = tempo_operacao;
 
-    for (int i = pacotes_removidos_lifo.tamanho() - 1; i >= 0; --i) {
-        Pacote* p_original = getPacotePorId(pacotes_removidos_lifo[i].getId());
-        bool vai_viajar = false;
-        for (size_t k = 0; k < ids_para_transportar.tamanho(); ++k) {
-            if (ids_para_transportar[k] == p_original->getId()) {
-                vai_viajar = true;
-                break;
-            }
-        }
+    int pacotes_carregados = 0;
+    while (!pilha_auxiliar.vazia()) {
+        Pacote* p = pilha_auxiliar.desempilhar();
 
-        if (vai_viajar) {
-            int latencia_da_rota = rota_transporte->getTempoTransportePorSegmento();
-            p_original->addTempoTransporte(latencia_da_rota);
+        if (pacotes_carregados < rota_transporte->getCapacidadeMaxPacotes()) {
+            pacotes_carregados++;
+            
+            p->addTempoTransporte(rota_transporte->getTempoTransportePorSegmento());
+            imprimirEvento(tempo_final_remocao, p->getId(), "em transito de " + formatarNumero(origem, 3) + " para " + formatarNumero(destino, 3));
 
-            imprimirEvento(tempo_final_op, p_original->getId(), "em transito de " + formatarNumero(origem, 3) + " para " + formatarNumero(destino, 3));
-            int tempo_chegada = tempo_final_op + rota_transporte->getTempoTransportePorSegmento();
-            fila_eventos.inserir(new EventoChegadaPacote(tempo_chegada, p_original->getId()));
+            int tempo_chegada_destino = tempo_final_remocao + rota_transporte->getTempoTransportePorSegmento();
+            
+            
+            fila_eventos.inserir(new Evento(tempo_chegada_destino, p->getId(), origem, destino, PACOTE, CHEGADA_PACOTE));
+
         } else {
-            imprimirEvento(tempo_final_op, p_original->getId(), "rearmazenado em " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
-            secao.empilhar(*p_original);
+            imprimirEvento(tempo_final_remocao, p->getId(), "rearmazenado em " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
+            armazem_origem->armazenaPacote(p, destino);
+            p->setTempoChegadaAtual(tempo_final_remocao);
         }
     }
 }
@@ -278,7 +265,6 @@ void Escalonador::calcularRotaParaPacote(Pacote& pacote) {
                 pred[v] = u;
                 fila_bfs.adicionar(v);
             }
-            
         }
     }
 
