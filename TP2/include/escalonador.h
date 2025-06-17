@@ -139,6 +139,12 @@ class Escalonador {
          */
         void executar();
     
+        /**
+         * @brief Retorna um ponteiro para um objeto Pacote com base em seu ID.
+         * @param id O ID do pacote a ser encontrado.
+         * @return Ponteiro para o Pacote, ou nullptr se não for encontrado.
+         */
+        Pacote* getPacotePorId(int id);
     private:
         // --- Variáveis de Estado ---
         int tempo_sistema;              // O tempo atual do sistema na simulação.
@@ -201,12 +207,7 @@ class Escalonador {
          */
         std::string formatarNumero(int numero, int largura);
     
-        /**
-         * @brief Retorna um ponteiro para um objeto Pacote com base em seu ID.
-         * @param id O ID do pacote a ser encontrado.
-         * @return Ponteiro para o Pacote, ou nullptr se não for encontrado.
-         */
-        Pacote* getPacotePorId(int id);
+
         
         /**
          * @brief Retorna um ponteiro para um objeto Armazem com base em seu ID.

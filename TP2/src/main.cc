@@ -1,5 +1,5 @@
 // VPL - Testes para entrega
-
+/*
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -79,8 +79,8 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+*/
 
-/*
 // Análise experimental
 #include <iostream>
 #include <fstream>
@@ -182,4 +182,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-*/
