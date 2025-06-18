@@ -4,7 +4,7 @@ import csv
 import statistics
 import re
 
-def extrair_parametros_do_nome(nome_arquivo):
+def extrair_parametros_do_nome(nome_arquivo):    
     """Extrai A e P do nome do arquivo, ex: 'teste_A10_P100.txt'"""
     match_A = re.search(r'A(\d+)', nome_arquivo)
     match_P = re.search(r'P(\d+)', nome_arquivo)
@@ -39,9 +39,9 @@ def executar_simulacao(executavel, arquivo_teste, num_repeticoes=3):
     return media, desvio_padrao
 
 if __name__ == "__main__":
-    PASTA_TESTES = 'casos_de_teste'
+    PASTA_TESTES = 'novos_testes'
     EXECUTAVEL_CPP = '../bin/tp2.out' # Ajuste o caminho conforme sua estrutura
-    CSV_SAIDA = 'resultados/resultados_desempenho.csv'
+    CSV_SAIDA = 'resultados/resultados_desempenho_transporte.csv'
 
     if not os.path.exists(os.path.dirname(CSV_SAIDA)):
         os.makedirs(os.path.dirname(CSV_SAIDA))
