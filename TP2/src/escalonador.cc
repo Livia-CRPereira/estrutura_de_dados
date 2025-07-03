@@ -1,7 +1,7 @@
 #include "escalonador.h"
 
-Escalonador::Escalonador() : tempo_sistema(0), pacotes_entregues(0), total_pacotes_na_simulacao(0),
-                            mapa_pacotes(1009), mapa_armazens(251), mapa_transportes(1009) {}
+Escalonador::Escalonador() : contador_rearmazenamentos(0), tempo_sistema(0), pacotes_entregues(0), total_pacotes_na_simulacao(0),
+                            mapa_pacotes(1009), mapa_armazens(251), mapa_transportes(1009){}
 
 Escalonador::~Escalonador() {
     // Libera os eventos da fila
@@ -140,11 +140,11 @@ void Escalonador::processarEventoChegada(Evento* evento) {
         int tempo_total = evento->tempo - pacote->getTempoPostagem();
         pacote->addTempoTotal(tempo_total);
 
-        imprimirEvento(evento->tempo, pacote->getId(), "entregue em " + formatarNumero(armazem_atual_id, 3));
+        // imprimirEvento(evento->tempo, pacote->getId(), "entregue em " + formatarNumero(armazem_atual_id, 3));
     } else {
         int proximo_armazem_id = pacote->getProximoArmazem();
         getArmazemPorId(armazem_atual_id)->armazenaPacote(pacote, proximo_armazem_id); 
-        imprimirEvento(evento->tempo, pacote->getId(), "armazenado em " + formatarNumero(armazem_atual_id, 3) + " na secao " + formatarNumero(proximo_armazem_id, 3));
+        // imprimirEvento(evento->tempo, pacote->getId(), "armazenado em " + formatarNumero(armazem_atual_id, 3) + " na secao " + formatarNumero(proximo_armazem_id, 3));
     }
 }
 
@@ -175,7 +175,7 @@ void Escalonador::processarEventoTransporte(Evento* evento) {
         int tempo_espera_etapa = tempo_operacao - p->getTempoChegadaAtual();
         p->addTempoEspera(tempo_espera_etapa);
 
-        imprimirEvento(tempo_operacao, p->getId(), "removido de " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
+        // imprimirEvento(tempo_operacao, p->getId(), "removido de " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
         pilha_auxiliar.empilhar(p);
     }
     int tempo_final_remocao = tempo_operacao;
@@ -188,7 +188,7 @@ void Escalonador::processarEventoTransporte(Evento* evento) {
             pacotes_carregados++;
             
             p->addTempoTransporte(rota_transporte->getTempoTransportePorSegmento());
-            imprimirEvento(tempo_final_remocao, p->getId(), "em transito de " + formatarNumero(origem, 3) + " para " + formatarNumero(destino, 3));
+            // imprimirEvento(tempo_final_remocao, p->getId(), "em transito de " + formatarNumero(origem, 3) + " para " + formatarNumero(destino, 3));
 
             int tempo_chegada_destino = tempo_final_remocao + rota_transporte->getTempoTransportePorSegmento();
             
@@ -196,7 +196,8 @@ void Escalonador::processarEventoTransporte(Evento* evento) {
             fila_eventos.inserir(new Evento(tempo_chegada_destino, p->getId(), origem, destino, PACOTE, CHEGADA_PACOTE));
 
         } else {
-            imprimirEvento(tempo_final_remocao, p->getId(), "rearmazenado em " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
+            this->contador_rearmazenamentos++;
+            // imprimirEvento(tempo_final_remocao, p->getId(), "rearmazenado em " + formatarNumero(origem, 3) + " na secao " + formatarNumero(destino, 3));
             armazem_origem->armazenaPacote(p, destino);
             p->setTempoChegadaAtual(tempo_final_remocao);
         }

@@ -98,6 +98,7 @@ class Escalonador {
          */
         ~Escalonador();
     
+        int getContadorRearmazenamentos() const { return contador_rearmazenamentos; }
         /**
          * @brief Carrega os parâmetros globais da simulação.
          * @param interv_transp Intervalo de tempo entre despachos de veículos na mesma rota.
@@ -147,6 +148,7 @@ class Escalonador {
         Pacote* getPacotePorId(int id);
     private:
         // --- Variáveis de Estado ---
+        int contador_rearmazenamentos;
         int tempo_sistema;              // O tempo atual do sistema na simulação.
         int pacotes_entregues;          // Contador para o critério de parada da simulação.
         int total_pacotes_na_simulacao; // Número total de pacotes a serem entregues.

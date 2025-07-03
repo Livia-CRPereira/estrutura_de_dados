@@ -1,3 +1,4 @@
+/*
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -73,4 +74,77 @@ int main(int argc, char* argv[]) {
     }
 
     return 0; // Sucesso!
+}
+*/
+
+// Análise experimental
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <fstream>
+#include <istream>
+#include <chrono>
+
+#include "organizador_eventos.h"
+#include "consulta.h"
+#include "estruturas.h"
+
+int main(int argc, char* argv[]) {
+    auto inicio_total = std::chrono::high_resolution_clock::now();
+    std::ios_base::sync_with_stdio(false);
+    std::cin.tie(NULL);
+
+    // Lógica de entrada (sem alteração)
+    std::ifstream file_stream;
+    std::istream* input_stream = &std::cin;
+    if (argc > 1) {
+        file_stream.open(argv[1]);
+        if (!file_stream.is_open()) {
+            std::cerr << "ERRO: Nao foi possivel abrir o arquivo de entrada '" << argv[1] << "'" << std::endl;
+            return 1;
+        }
+        input_stream = &file_stream;
+    }
+
+    Vetor<std::string> linhas_lidas;
+    std::string linha;
+    while (std::getline(*input_stream, linha)) {
+        linhas_lidas.adicionar(linha);
+    }
+    if (file_stream.is_open()) {
+        file_stream.close();
+    }
+    
+    auto fim_leitura = std::chrono::high_resolution_clock::now();
+
+    // Lógica de processamento (sem alteração)
+    OrganizadorEventos organizador;
+    Consulta consulta(&organizador);
+    for (size_t i = 0; i < linhas_lidas.tamanho(); ++i) {
+        // ... (resto do loop sem alterações)
+        const std::string& linha_atual = linhas_lidas[i];
+        if (linha_atual.empty()) continue;
+        std::stringstream ss(linha_atual);
+        Vetor<std::string> tokens;
+        std::string token;
+        while (ss >> token) { tokens.adicionar(token); }
+        if (tokens.tamanho() < 2) continue;
+        const std::string& tipoCmd = tokens[1];
+        if (tipoCmd == "EV") { organizador.processarEvento(tokens); }
+        else if (tipoCmd == "PC") { consulta.processarConsultaPacote(tokens); }
+        else if (tipoCmd == "CL") { consulta.processarConsultaCliente(tokens); }
+    }
+
+    auto fim_total = std::chrono::high_resolution_clock::now();
+
+    // =========== MUDANÇA AQUI: de milissegundos para microssegundos ===========
+    // Calcula as durações em microssegundos
+    auto duracao_leitura_us = std::chrono::duration_cast<std::chrono::microseconds>(fim_leitura - inicio_total).count();
+    auto duracao_processamento_us = std::chrono::duration_cast<std::chrono::microseconds>(fim_total - fim_leitura).count();
+
+    // Imprime os resultados com a nova unidade (US)
+    std::cerr << "TEMPO_LEITURA_US:" << duracao_leitura_us << ";TEMPO_PROCESSAMENTO_US:" << duracao_processamento_us << std::endl;
+    // =======================================================================
+
+    return 0;
 }

@@ -3,8 +3,8 @@ import os
 import random
 
 # --- PARÂMETROS FIXOS DA RODADA EXPERIMENTAL ---
-A = 50      # Número de Armazéns
-P = 1000    # Número de Pacotes
+A = 10      # Número de Armazéns
+P = 2000    # Número de Pacotes
 CUSTO_REMOCAO = 1
 
 # --- PARÂMETROS VARIÁVEIS ---
@@ -17,7 +17,7 @@ LATENCIAS = [10, 25, 50, 100, 200, 500]
 # Para o experimento de Capacidade vs. Intervalo, a latência será fixa.
 LATENCIA_FIXA_EXP1 = 25
 # Para o experimento de Latência vs. Intervalo, a capacidade será fixa.
-CAPACIDADE_FIXA_EXP2 = 50
+CAPACIDADE_FIXA_EXP2 = 5
 
 # Diretório para salvar os testes
 TEST_DIR = "cenarios_de_teste"
